@@ -23,3 +23,8 @@ __pycache__/
 
 # ruff cache
 .ruff_cache/
+
+# OS & temporary build files
+.DS_Store
+.Rhistory
+*.log
