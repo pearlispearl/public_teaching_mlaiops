@@ -9,9 +9,6 @@ data is not evidence of anything.
 """
 from __future__ import annotations
 
-import random
-import numpy as np
-import torch
 import argparse
 import json
 import subprocess
@@ -23,12 +20,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from src import config, data, seeds
-
-SEED = 42
-
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
 
 #mlflow.log_param("seed", SEED)
 
