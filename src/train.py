@@ -9,6 +9,9 @@ data is not evidence of anything.
 """
 from __future__ import annotations
 
+import random
+import numpy as np
+import torch
 import argparse
 import json
 import subprocess
@@ -21,6 +24,13 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 from src import config, data, seeds
 
+SEED = 42
+
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+
+#mlflow.log_param("seed", SEED)
 
 def git_commit() -> str:
     try:
@@ -58,6 +68,7 @@ def main() -> None:
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
     mlflow.set_experiment(args.experiment)
 
+    mlflow.end_run()
     with mlflow.start_run(run_name=args.run_name):
         mlflow.log_params({
             "n_estimators": args.n_estimators,

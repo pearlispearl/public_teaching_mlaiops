@@ -15,20 +15,65 @@ Hints for Lab 1:
 """
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any
 
+from google.cloud import storage
 from cloudlayer.base import CloudAdapter
-
 
 class GcpAdapter(CloudAdapter):
     def upload(self, local_path: str, key: str) -> str:
-        raise NotImplementedError("TODO Lab 1: blob.upload_from_filename, return the gs:// URI")
+        # Parse bucket name & object key from config/BLOB_URI
+        bucket_uri = self.cfg.bucket_name if hasattr(self.cfg, "bucket_name") else self.cfg.bucket
+        if bucket_uri.startswith("gs://"):
+            bucket_name = urlparse(bucket_uri).netloc
+        else:
+            bucket_name = bucket_uri.split("/")[0]
+
+        client = storage.Client(project=getattr(self.cfg, "project_id", None))
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(key)
+        blob.upload_from_filename(local_path)
+
+        return f"gs://{bucket_name}/{key}"
 
     def download(self, uri: str, local_path: str) -> None:
-        raise NotImplementedError("TODO Lab 1: blob.download_to_filename, creating parents")
+        parsed = urlparse(uri)
+        bucket_name = parsed.netloc
+        blob_name = parsed.path.lstrip('/')
+
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+
+        client = storage.Client(project=getattr(self.cfg, "project_id", None))
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+        blob.download_to_filename(local_path)
 
     def push_image(self, local_tag: str) -> str:
-        raise NotImplementedError("TODO Lab 1: configure-docker, push, return repo@sha256:...")
+        region = getattr(self.cfg, "region", "asia-southeast1")
+        project_id = getattr(self.cfg, "project_id", "itcs355-6688015")
+        repo_name = getattr(self.cfg, "repository", "itcs355")
+
+        registry = f"{region}-docker.pkg.dev"
+        remote_tag = f"{registry}/{project_id}/{repo_name}/{local_tag}"
+
+        # 1. Authenticate Docker with Artifact Registry
+        subprocess.run(["gcloud", "auth", "configure-docker", registry, "--quiet"], check=True)
+
+        # 2. Tag & Push
+        subprocess.run(["docker", "tag", local_tag, remote_tag], check=True)
+        subprocess.run(["docker", "push", remote_tag], check=True)
+
+        # 3. Extract & Return Digest (repo@sha256:...) instead of tag
+        result = subprocess.run(
+            ["docker", "inspect", "--format='{{index .RepoDigests 0}}'", remote_tag],
+            capture_output=True, text=True, check=True
+        )
+        digest_ref = result.stdout.strip().strip("'\"")
+
+        return digest_ref
 
     # submit_training / register_model  -> Lab 2 (Vertex custom training + Model Registry)
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
