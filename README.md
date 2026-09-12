@@ -11,7 +11,7 @@ whether a stranger can reproduce it is.
 
 > **This README is graded.** A grader with Docker and nothing else from your setup runs one
 > command and compares the result against the claim below. Edit every `<...>` and delete the
-> instruction blocks marked REPLACE  before submitting.
+> instruction blocks marked before submitting.
 
 ---
 
@@ -39,7 +39,7 @@ in exactly one partition. Splitting row-wise instead lets the model memorise the
 reports a validation score that will never survive production. `tests/test_data.py` asserts this
 property holds, and Lab 4 turns it into a CI gate.
 
-Bringing your own dataset is allowed. Replace `scripts/make_dataset.py`, update the schema in
+Bringing your own dataset is allowed. `scripts/make_dataset.py`, update the schema in
 `src/data.py`, and keep every test passing.
 
 ---
@@ -138,7 +138,7 @@ subprocess call.
 - [ ] Image builds for `linux/amd64` and is pushed, digest-pinned
 - [ ] `dvc push` completed; a grader can `dvc pull`
 - [ ] Five or more tracked runs with params, metrics, data fingerprint, and commit SHA
-- [ ] Every REPLACE  block above is gone (the course-materials block at the top stays)
+- [ ] Every block above is gone (the course-materials block at the top stays)
 - [ ] `git log -p | grep -i -E "secret|password|AKIA|BEGIN PRIVATE"` returns nothing
 
 That last check is not optional. A credential in Git history is an automatic deduction in this
