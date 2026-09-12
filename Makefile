@@ -4,8 +4,13 @@
 SHELL := /bin/bash
 IMAGE ?= itcs355-lab1
 TAG   ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+GIT_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 PLATFORM ?= linux/amd64
 SEED ?= 20260101
+N_ESTIMATORS ?= 200
+MAX_DEPTH ?= 8
+MIN_SAMPLES_LEAF ?= 5
+RUN_NAME ?=
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
         tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
@@ -34,7 +39,9 @@ train: ## Train locally, outside the container
 	python -m src.train --seed $(SEED) --metrics-out reports/metrics.json
 
 image: ## Build the training image for linux/amd64
-	docker buildx build --platform $(PLATFORM) -t $(IMAGE):$(TAG) --load .
+	docker buildx build --platform $(PLATFORM) \
+      	  --build-arg GIT_COMMIT=$(GIT_COMMIT) \
+          -t $(IMAGE):$(TAG) --load .
 
 image-push: image ## Push to CONTAINER_REGISTRY via your adapter
 	python -c "from src import config; from cloudlayer.factory import get_adapter; \
@@ -45,8 +52,13 @@ reproduce: data image ## THE ONE COMMAND. Grader runs this.
 	  -v "$$PWD/data:/app/data:ro" \
 	  -v "$$PWD/reports:/app/reports" \
 	  -e MLFLOW_TRACKING_URI=sqlite:////app/reports/mlflow.db \
-	  $(IMAGE):$(TAG) --seed $(SEED) --metrics-out /app/reports/metrics.json
-
+	  $(IMAGE):$(TAG) \
+      	  --seed $(SEED) \
+      	  --n-estimators $(N_ESTIMATORS) \
+      	  --max-depth $(MAX_DEPTH) \
+      	  --min-samples-leaf $(MIN_SAMPLES_LEAF) \
+      	  $(if $(RUN_NAME),--run-name $(RUN_NAME)) \
+      	  --metrics-out /app/reports/metrics.json
 verify: ## Check the produced metric against the README claim
 	python scripts/verify_metric.py
 

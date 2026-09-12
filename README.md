@@ -11,7 +11,7 @@ whether a stranger can reproduce it is.
 
 > **This README is graded.** A grader with Docker and nothing else from your setup runs one
 > command and compares the result against the claim below. Edit every `<...>` and delete the
-> instruction blocks marked  before submitting.
+> instruction blocks marked REPLACE  before submitting.
 
 ---
 
@@ -81,7 +81,7 @@ Four `TODO` markers are left in the repo deliberately. Each is a graded decision
 |---|---|
 | `requirements.txt` | Regenerate with `pip-compile --generate-hashes` |
 | `Dockerfile` | Pin the base image by digest; add `--require-hashes` |
-| `cloudlayer/<your provider>.py` | Implement `upload`, `download`, `push_image` |
+| `cloudlayer/gcp.py` | Implement `upload`, `download`, `push_image` |
 | This README | The reproducibility trade-off question below |
 
 Then:
@@ -99,13 +99,34 @@ different seeds.
 
 ## Reproducibility trade-off
 
-Under extreme time pressure, I would drop Seed Control first. Dropping seeds costs comparability between runs by introducing slight variance in metric results, but it does not break the buildability or execution of the pipeline. 
-In contrast, dropping dependency hashes leaves the environment exposed to modified wheel packages, and dropping the Docker
-base image digest pin is the fastest way to have a build stop reproducing unexpectedly without any new git commits.
+Under time pressure, I would drop seed control first. In my own runs, fixing the seed reproduces test ROC AUC within 0.0002 of the claimed value, 
+but sweeping the seed across three runs moved it from 0.8240 to 0.8482, a spread of about 0.024. So dropping seed control costs comparability between
+runs, not buildability. I'd keep an unhashed dependency which could silently pull a tampered package, and a moving base-image tag can break the build 
+overnight with zero code change on my part.
 ---
 
 ## Notes for the grader
 
+**Tolerance scope.** The ±0.010 in the claim line covers fixed-seed
+reproducibility across machines/architectures, what `make reproduce`
+actually exercises. It does not cover seed sensitivity: varying the seed
+across three otherwise-identical runs moved test_roc_auc from 0.8482 to
+0.8240 (spread ≈ 0.248), because the seed also determines the machine-level
+split, not just the model's internal randomness. Both numbers are correct,
+they answer different questions.
+
+**Platform warning during `make reproduce`.** On Apple Silicon you'll see
+`WARNING: the requested image's platform (linux/amd64) does not match the
+detected host platform (linux/arm64/v8)`. This is expected, the image is
+built for linux/amd64 on purpose per the lab spec, and Docker Desktop runs it
+under emulation. It is not a build error.
+
+**git_commit provenance.** The runtime image intentionally has no `.git`
+directory and no `git` binary, the commit SHA is injected at build time via
+`--build-arg GIT_COMMIT=$(git rev-parse HEAD)` (see Makefile `image` target)
+and read from an environment variable at runtime, not queried live. This is
+why `src/train.py`'s `git_commit()` is a one-line env lookup rather than a
+subprocess call.
 ---
 
 ## Checklist before you submit
@@ -117,7 +138,7 @@ base image digest pin is the fastest way to have a build stop reproducing unexpe
 - [ ] Image builds for `linux/amd64` and is pushed, digest-pinned
 - [ ] `dvc push` completed; a grader can `dvc pull`
 - [ ] Five or more tracked runs with params, metrics, data fingerprint, and commit SHA
-- [ ] Every block above is gone (the course-materials block at the top stays)
+- [ ] Every REPLACE  block above is gone (the course-materials block at the top stays)
 - [ ] `git log -p | grep -i -E "secret|password|AKIA|BEGIN PRIVATE"` returns nothing
 
 That last check is not optional. A credential in Git history is an automatic deduction in this

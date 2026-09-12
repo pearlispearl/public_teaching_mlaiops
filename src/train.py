@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
+import os
 from pathlib import Path
 
 import mlflow
@@ -21,18 +21,8 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 from src import config, data, seeds
 
-#mlflow.log_param("seed", SEED)
-
 def git_commit() -> str:
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=True, cwd=config.REPO_ROOT,
-        )
-        return out.stdout.strip()
-    except Exception:
-        return "unknown"
-
+    return os.environ.get("GIT_COMMIT", "unknown")
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="ITCS355 Lab 1 — reproducible training")
