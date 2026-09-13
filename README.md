@@ -112,7 +112,7 @@ overnight with zero code change on my part.
 reproducibility across machines/architectures, what `make reproduce`
 actually exercises. It does not cover seed sensitivity: varying the seed
 across three otherwise-identical runs moved test_roc_auc from 0.8482 to
-0.8240 (spread ≈ 0.248), because the seed also determines the machine-level
+0.8240 (spread ≈ 0.024), because the seed also determines the machine-level
 split, not just the model's internal randomness. Both numbers are correct,
 they answer different questions.
 
