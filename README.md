@@ -103,6 +103,7 @@ Under time pressure, I would drop seed control first. In my own runs, fixing the
 but sweeping the seed across three runs moved it from 0.8240 to 0.8482, a spread of about 0.024. So dropping seed control costs comparability between
 runs, not buildability. I'd keep an unhashed dependency which could silently pull a tampered package, and a moving base-image tag can break the build 
 overnight with zero code change on my part.
+
 ---
 
 ## Notes for the grader
@@ -127,6 +128,7 @@ directory and no `git` binary, the commit SHA is injected at build time via
 and read from an environment variable at runtime, not queried live. This is
 why `src/train.py`'s `git_commit()` is a one-line env lookup rather than a
 subprocess call.
+
 ---
 
 ## Checklist before you submit
