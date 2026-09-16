@@ -97,8 +97,9 @@ class GcpAdapter(CloudAdapter):
         # ส่ง environment variables ที่ container ต้องใช้เข้าไปด้วย
         env_vars = [
             {"name": "BLOB_URI", "value": self.cfg.blob_uri},
+            {"name": "PROJECT_ID", "value": self.cfg.project_id},
             {"name": "MLFLOW_TRACKING_URI", "value": self.cfg.mlflow_tracking_uri},
-            {"name": "PROVIDER", "value": self.cfg.provider},
+            {"name": "PROVIDER", "value": "gcp"},
             {"name": "IDENTITY_REF", "value": self.cfg.identity_ref},
             {"name": "CONTAINER_REGISTRY", "value": self.cfg.container_registry},
         ]
