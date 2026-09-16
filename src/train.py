@@ -20,6 +20,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from src import config, data, seeds
+from cloudlayer.factory import get_adapter
 
 def git_commit() -> str:
     return os.environ.get("GIT_COMMIT", "unknown")
@@ -41,6 +42,15 @@ def main() -> None:
     args = parse_args()
     cfg = config.load(strict=False)
     seed = seeds.set_all(args.seed)
+
+    raw_file = Path(cfg.raw_path)
+    if not raw_file.exists():
+        raw_file.parent.mkdir(parents=True, exist_ok=True)
+        adapter = get_adapter(cfg)
+        blob_source = f"{cfg.blob_uri.rstrip('/')}/data/raw/sensors.csv"
+        
+        print(f"Downloading dataset from {blob_source} to {cfg.raw_path}...")
+        adapter.download(blob_source, str(raw_file))
 
     df = data.load_raw(cfg.raw_path)
     fingerprint = data.data_fingerprint(cfg.raw_path)
