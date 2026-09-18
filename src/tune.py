@@ -15,12 +15,16 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import os
 import time
 from pathlib import Path
+import shutil
+import joblib, tempfile
 
 import mlflow
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
+from cloudlayer.factory import get_adapter
 
 from src import config, costs, data, seeds
 from src.train import git_commit
@@ -28,9 +32,10 @@ from src.train import git_commit
 # TODO(Lab 2): widen this. Three hyperparameters minimum, and vary something that
 # actually changes model behaviour rather than three variants of the same idea.
 SEARCH_SPACE: dict[str, list] = {
-    "n_estimators": [100, 300],
+    "n_estimators": [100, 200, 300],
     "max_depth": [4, 8, 12],
-    "min_samples_leaf": [1, 5],
+    "min_samples_leaf": [5, 10],
+    "max_features": ["sqrt"],
 }
 
 
@@ -43,11 +48,12 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="ITCS355 Lab 2 — budgeted study")
     p.add_argument("--trials", type=int, default=12, help="minimum 12 for the lab")
     p.add_argument("--budget-thb", type=float, default=150.0)
-    p.add_argument("--instance", default="local", help="key into src/costs.py PRICE_TABLE")
+    p.add_argument("--instance", default="n1-standard-4", help="key into src/costs.py PRICE_TABLE")    
     p.add_argument("--seed", type=int, default=seeds.DEFAULT_SEED)
     p.add_argument("--experiment", default="itcs355-lab2")
     p.add_argument("--checkpoint", type=Path, default=Path("reports/tune_checkpoint.json"),
                    help="Resume file. Spot interruption should cost minutes, not the run.")
+    p.add_argument("--spot", action="store_true", help="Use spot/preemptible pricing")
     return p.parse_args()
 
 
@@ -61,23 +67,73 @@ def save_checkpoint(path: Path, state: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, indent=2))
 
+def sync_mlflow_db_down(cfg) -> Path:
+    """Download mlflow.db from GCS if exists."""
+    from cloudlayer.factory import get_adapter
+    local_db = Path("/app/reports/mlflow.db")
+    local_db.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        adapter = get_adapter(cfg)
+        adapter.download(
+            f"{cfg.blob_uri.rstrip('/')}/mlflow/mlflow.db",
+            str(local_db)
+        )
+        print("Resumed mlflow.db from GCS")
+    except Exception:
+        print("No existing mlflow.db on GCS, starting fresh")
+    return local_db
+
+def sync_mlflow_db_up(cfg, local_db: Path) -> None:
+    """Upload mlflow.db back to GCS."""
+    if not local_db.exists():
+        print(f"WARNING: {local_db} not found")
+        return
+    get_adapter(cfg).upload(str(local_db), "mlflow/mlflow.db")
+    print(f"Synced mlflow.db to GCS")
+
+def sync_checkpoint_up(cfg, checkpoint_path: Path) -> None:
+    if checkpoint_path.exists():
+        get_adapter(cfg).upload(str(checkpoint_path), "mlflow/tune_checkpoint.json")
+
+def sync_checkpoint_down(cfg, checkpoint_path: Path) -> None:
+    try:
+        get_adapter(cfg).download(
+            f"{cfg.blob_uri.rstrip('/')}/mlflow/tune_checkpoint.json",
+            str(checkpoint_path)
+        )
+        print("Resumed checkpoint from GCS")
+    except Exception:
+        print("No checkpoint on GCS, starting fresh")
 
 def main() -> None:
     args = parse_args()
     cfg = config.load(strict=False)
     seed = seeds.set_all(args.seed)
 
+    # Sync mlflow.db from GCS
+    local_db = Path("/app/reports/mlflow.db")
+    local_db.parent.mkdir(parents=True, exist_ok=True)
+    sync_mlflow_db_down(cfg)
+    mlflow.set_tracking_uri(f"sqlite:///{local_db}")
+    sync_checkpoint_down(cfg, args.checkpoint)
+
+    raw_file = Path(cfg.raw_path)
+    if not raw_file.exists():
+        raw_file.parent.mkdir(parents=True, exist_ok=True)
+        adapter = get_adapter(cfg)
+        blob_source = f"{cfg.blob_uri.rstrip('/')}/data/raw/sensors.csv"
+        print(f"Downloading dataset from {blob_source}...")
+        adapter.download(blob_source, str(raw_file))
+
     df = data.load_raw(cfg.raw_path)
     fingerprint = data.data_fingerprint(cfg.raw_path)
     train_df, val_df, test_df = data.split(df, seed=seed)
 
-    mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
     mlflow.set_experiment(args.experiment)
 
     state = load_checkpoint(args.checkpoint)
     candidates = grid(SEARCH_SPACE)[: args.trials]
-    rate = costs.hourly_rate(cfg.provider, args.instance)
-
+    rate = costs.hourly_rate(cfg.provider, args.instance, spot=args.spot)
     skipped: list[dict] = []
     for i, params in enumerate(candidates):
         key = json.dumps(params, sort_keys=True)
@@ -117,8 +173,20 @@ def main() -> None:
             })
             mlflow.sklearn.log_model(model, name="model")
 
+            with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as f:
+                tmp_path = f.name
+            try:
+                joblib.dump(model, tmp_path)
+                get_adapter(cfg).upload(
+                    tmp_path,
+                    f"models/trial-{i:02d}/model.joblib"
+                )
+            finally:
+                os.unlink(tmp_path)
+
         state["completed"].append(key)
         save_checkpoint(args.checkpoint, state)
+        sync_checkpoint_up(cfg, args.checkpoint)  
         print(f"trial {i}: {params} -> val_roc_auc={metrics['val_roc_auc']:.4f} "
               f"cost={trial_cost:.4f} THB  cumulative={state['spent_thb']:.4f}")
 
@@ -130,6 +198,7 @@ def main() -> None:
         print("Report this in your README. Which trials you could not afford is a finding, "
               "not an embarrassment.")
 
+    sync_mlflow_db_up(cfg, local_db)
 
 if __name__ == "__main__":
     main()

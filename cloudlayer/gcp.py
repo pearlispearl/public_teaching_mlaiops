@@ -29,7 +29,10 @@ from urllib.parse import urlparse
 from typing import Any
 
 from google.cloud import storage, aiplatform
+from google.cloud.aiplatform_v1.types import custom_job as gca_custom_job
+from google.cloud.aiplatform_v1.types import job_state
 from cloudlayer.base import CloudAdapter
+
 
 
 class GcpAdapter(CloudAdapter):
@@ -88,34 +91,46 @@ class GcpAdapter(CloudAdapter):
             staging_bucket=self.cfg.blob_uri,
         )
 
+        entry = args.pop("entry", "train")  
+
         cli_args: list[str] = []
         for k, v in args.items():
-            cli_args += [f"--{k.replace('_', '-')}", str(v)]
+            if isinstance(v, bool):
+                if v:
+                    cli_args.append(f"--{k.replace('_', '-')}")
+            else:
+                cli_args += [f"--{k.replace('_', '-')}", str(v)]
 
         machine_type = args.get("instance", "n1-standard-4")
 
-        # ส่ง environment variables ที่ container ต้องใช้เข้าไปด้วย
         env_vars = [
             {"name": "BLOB_URI", "value": self.cfg.blob_uri},
             {"name": "PROJECT_ID", "value": self.cfg.project_id},
             {"name": "MLFLOW_TRACKING_URI", "value": self.cfg.mlflow_tracking_uri},
-            {"name": "PROVIDER", "value": "gcp"},
+            {"name": "CLOUD_PROVIDER", "value": "gcp"},
             {"name": "IDENTITY_REF", "value": self.cfg.identity_ref},
             {"name": "CONTAINER_REGISTRY", "value": self.cfg.container_registry},
+            {"name": "REGION",                 "value": self.cfg.region},
         ]
 
         job = aiplatform.CustomJob(
-            display_name=f"itcs355-lab2-{self.cfg.tags(2)['student']}",
+            display_name=f"itcs355-lab2-tune-{self.cfg.tags(2)['student']}",
             worker_pool_specs=[{
                 "machine_spec": {"machine_type": machine_type},
                 "replica_count": 1,
                 "container_spec": {
-                    "image_uri": image_uri, 
-                    "args": cli_args,
-                    "env": env_vars,
+                    "image_uri": image_uri,
+                    "command":   ["python", "-m", f"src.{entry}"],
+                    "args":      cli_args,
+                    "env":       env_vars,
                 },
             }],
             labels=self.cfg.tags(2),
+        )
+
+        # Set SPOT via job_spec after construction
+        job._gca_resource.job_spec.scheduling.strategy = (
+            gca_custom_job.Scheduling.Strategy.SPOT
         )
 
         job.submit(service_account=self.cfg.identity_ref)
@@ -138,12 +153,42 @@ class GcpAdapter(CloudAdapter):
             time.sleep(15)
             job = aiplatform.CustomJob.get(job_id)  # re-fetch for updated state
 
-        result: dict[str, Any] = {"job_id": job_id, "state": str(job.state)}
+        state_map = {
+            aiplatform.gapic.JobState.JOB_STATE_SUCCEEDED: "SUCCEEDED",
+            aiplatform.gapic.JobState.JOB_STATE_FAILED: "FAILED",
+            aiplatform.gapic.JobState.JOB_STATE_CANCELLED: "CANCELLED",
+            aiplatform.gapic.JobState.JOB_STATE_EXPIRED: "EXPIRED",
+        }
+        result: dict[str, Any] = {"job_id": job_id, "state": state_map.get(job.state, str(job.state))}        
         if job.state != aiplatform.gapic.JobState.JOB_STATE_SUCCEEDED:
             result["error"] = str(job.error) if job.error else "unknown failure"
         return result
 
-    # register_model                    -> Lab 2 (Vertex Model Registry)
+    # register_model -> Lab 2 (Vertex Model Registry)
+    def register_model(self, model_uri: str, name: str, lineage: dict[str, Any] | None = None) -> str:
+        """Upload model artifact to Vertex AI Model Registry with lineage tags.
+        
+        Returns the version string (e.g. '1').
+        """
+        aiplatform.init(
+            project=self.cfg.project_id,
+            location=self.cfg.region,
+        )
+
+        def clean(v: str) -> str:
+            return "".join(c if c.isalnum() or c == "-" else "-" for c in str(v).lower())[:63]
+
+        labels = {clean(k): clean(v) for k, v in (lineage or {}).items()}
+        labels.update(self.cfg.tags(2))
+
+        model = aiplatform.Model.upload(
+            display_name=name,
+            artifact_uri=model_uri,
+            serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-3:latest",
+            labels=labels,
+        )
+
+        return str(model.version_id)
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)

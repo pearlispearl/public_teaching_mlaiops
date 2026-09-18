@@ -11,9 +11,12 @@ N_ESTIMATORS ?= 200
 MAX_DEPTH ?= 8
 MIN_SAMPLES_LEAF ?= 5
 RUN_NAME ?=
+INSTANCE ?= n1-standard-4
+REGISTRY ?= asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
-        tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
+        train-remote tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
 
 help:
 	@grep -E "^[a-zA-Z_-]+:.*?## .*$$" $(MAKEFILE_LIST) | awk -F":.*?## " "{printf \"  %-20s %s\\n\", \$$1, \$$2}"
@@ -70,8 +73,28 @@ clean: ## Remove local artifacts
 	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json .pytest_cache
 
 # --- Lab 2 -------------------------------------------------------------------
-tune: ## Budgeted hyperparameter study (>=12 trials)
-	python -m src.tune --trials 12 --budget-thb 150
+train-remote: image ## Submit training job to Vertex AI
+	python -c "\
+from src import config; from cloudlayer.factory import get_adapter; \
+cfg = config.load(); adapter = get_adapter(cfg); \
+digest = adapter.push_image('$(IMAGE):$(TAG)'); \
+print('Pushed:', digest); \
+job_id = adapter.submit_training(digest, \
+  {'n_estimators': $(N_ESTIMATORS), 'max_depth': $(MAX_DEPTH), \
+   'min_samples_leaf': $(MIN_SAMPLES_LEAF), 'seed': $(SEED)}); \
+print('job_id:', job_id); print(adapter.wait_training(job_id))"
+
+tune: image-push 
+	python -c "\
+from src import config; from cloudlayer.factory import get_adapter; \
+cfg = config.load(); adapter = get_adapter(cfg); \
+digest = adapter.push_image('$(IMAGE):$(TAG)'); \
+print('Pushed:', digest); \
+job_id = adapter.submit_training(digest, \
+  {'entry': 'tune', 'trials': 18, 'budget_thb': 150, \
+   'instance': 'n1-standard-4', 'spot': True, \
+   'experiment': 'itcs355-lab2'}); \
+print('job_id:', job_id); print(adapter.wait_training(job_id))"
 
 compare: ## Rank runs by metric and by cost per point
 	python scripts/compare_runs.py --experiment itcs355-lab2
