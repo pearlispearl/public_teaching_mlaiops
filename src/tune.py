@@ -68,43 +68,37 @@ def save_checkpoint(path: Path, state: dict) -> None:
     path.write_text(json.dumps(state, indent=2))
 
 def sync_mlflow_db_down(cfg) -> Path:
-    """Download mlflow.db from GCS if exists."""
-    from cloudlayer.factory import get_adapter
-    local_db = Path("/app/reports/mlflow.db")
+    local_db = Path(os.environ.get("MLFLOW_DB_PATH", "/app/reports/mlflow.db"))
     local_db.parent.mkdir(parents=True, exist_ok=True)
     try:
-        adapter = get_adapter(cfg)
-        adapter.download(
-            f"{cfg.blob_uri.rstrip('/')}/mlflow/mlflow.db",
-            str(local_db)
-        )
-        print("Resumed mlflow.db from GCS")
+        blob_source = f"{cfg.blob_uri.rstrip('/')}/mlflow/mlflow.db"
+        get_adapter(cfg).download(blob_source, str(local_db))
+        print("Resumed mlflow.db from cloud storage")
     except Exception:
-        print("No existing mlflow.db on GCS, starting fresh")
+        print("No existing mlflow.db on cloud storage, starting fresh")
     return local_db
 
 def sync_mlflow_db_up(cfg, local_db: Path) -> None:
-    """Upload mlflow.db back to GCS."""
     if not local_db.exists():
         print(f"WARNING: {local_db} not found")
         return
     get_adapter(cfg).upload(str(local_db), "mlflow/mlflow.db")
-    print(f"Synced mlflow.db to GCS")
+    print("Synced mlflow.db to GCS")
 
 def sync_checkpoint_up(cfg, checkpoint_path: Path) -> None:
     if checkpoint_path.exists():
-        get_adapter(cfg).upload(str(checkpoint_path), "mlflow/tune_checkpoint.json")
+        adapter = get_adapter(cfg)
+        adapter.upload(str(checkpoint_path), "mlflow/tune_checkpoint.json")
+        print("Checkpoint synced to GCS")
 
 def sync_checkpoint_down(cfg, checkpoint_path: Path) -> None:
     try:
-        get_adapter(cfg).download(
-            f"{cfg.blob_uri.rstrip('/')}/mlflow/tune_checkpoint.json",
-            str(checkpoint_path)
-        )
-        print("Resumed checkpoint from GCS")
+        blob_source = f"{cfg.blob_uri.rstrip('/')}/mlflow/tune_checkpoint.json"
+        get_adapter(cfg).download(blob_source, str(checkpoint_path))
+        print("Resumed checkpoint from cloud storage")
     except Exception:
-        print("No checkpoint on GCS, starting fresh")
-
+        print("No checkpoint on cloud storage, starting fresh")
+        
 def main() -> None:
     args = parse_args()
     cfg = config.load(strict=False)

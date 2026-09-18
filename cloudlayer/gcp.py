@@ -37,16 +37,18 @@ from cloudlayer.base import CloudAdapter
 
 class GcpAdapter(CloudAdapter):
     def upload(self, local_path: str, key: str) -> str:
-        bucket_uri = self.cfg.blob_uri
-        parsed = urlparse(bucket_uri)
+        parsed = urlparse(self.cfg.blob_uri)
         bucket_name = parsed.netloc
+        prefix = parsed.path.strip("/")
+
+        full_key = f"{prefix}/{key.lstrip('/')}" if prefix else key.lstrip("/")
 
         client = storage.Client(project=self.cfg.project_id)
         bucket = client.bucket(bucket_name)
-        blob = bucket.blob(key)
+        blob = bucket.blob(full_key)
         blob.upload_from_filename(local_path)
 
-        return f"gs://{bucket_name}/{key}"
+        return f"gs://{bucket_name}/{full_key}"
 
     def download(self, uri: str, local_path: str) -> None:
         parsed = urlparse(uri)
