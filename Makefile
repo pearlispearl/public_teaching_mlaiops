@@ -97,7 +97,7 @@ job_id = adapter.submit_training(digest, \
 print('job_id:', job_id); print(adapter.wait_training(job_id))"
 
 compare: ## Rank runs by metric and by cost per point
-	python scripts/compare_runs.py --experiment itcs355-lab2
+	MLFLOW_TRACKING_URI=sqlite:///$$(pwd)/reports/mlflow.db python scripts/compare_runs.py --experiment itcs355-lab2
 
 reload-check: ## Load the registered model by version and score rows
 	python scripts/reload_check.py --name $(MODEL_REGISTRY_NAME) --version $(VERSION)

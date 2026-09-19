@@ -98,17 +98,18 @@ def sync_checkpoint_down(cfg, checkpoint_path: Path) -> None:
         print("Resumed checkpoint from cloud storage")
     except Exception:
         print("No checkpoint on cloud storage, starting fresh")
-        
+
 def main() -> None:
     args = parse_args()
     cfg = config.load(strict=False)
     seed = seeds.set_all(args.seed)
 
     # Sync mlflow.db from GCS
-    local_db = Path("/app/reports/mlflow.db")
+    local_db = Path(os.environ.get("MLFLOW_DB_PATH", "/app/reports/mlflow.db"))
     local_db.parent.mkdir(parents=True, exist_ok=True)
     sync_mlflow_db_down(cfg)
-    mlflow.set_tracking_uri(f"sqlite:///{local_db}")
+    mlflow.set_tracking_uri(f"sqlite:///{local_db.resolve()}")
+    
     sync_checkpoint_down(cfg, args.checkpoint)
 
     raw_file = Path(cfg.raw_path)
@@ -180,7 +181,8 @@ def main() -> None:
 
         state["completed"].append(key)
         save_checkpoint(args.checkpoint, state)
-        sync_checkpoint_up(cfg, args.checkpoint)  
+        sync_checkpoint_up(cfg, args.checkpoint)
+        sync_mlflow_db_up(cfg, local_db)  
         print(f"trial {i}: {params} -> val_roc_auc={metrics['val_roc_auc']:.4f} "
               f"cost={trial_cost:.4f} THB  cumulative={state['spent_thb']:.4f}")
 

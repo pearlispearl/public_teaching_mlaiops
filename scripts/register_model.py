@@ -7,14 +7,13 @@ import mlflow
 from src import config
 from cloudlayer.factory import get_adapter
 
-RUN_ID       = "ba3ca2788ed742c089c4cd81b54e593f"
-TRAINING_JOB = "projects/116618257996/locations/asia-southeast1/customJobs/1449779473623810048"
-IMAGE_DIGEST = "asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1@sha256:95fc2b006f631f60b2414c3666ba1cd8de97e098bc9904f8e26c45aa02614392"
-
+RUN_ID       = "53a0b9db97604d3d84fe777910ba0853"
+TRAINING_JOB = "projects/116618257996/locations/asia-southeast1/customJobs/5282624231492812800"
+IMAGE_DIGEST = "asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1@sha256:9d72e11d52d5a911ab93d966987c8fc006ed9be025616dfdf5c10cc54f6b4e7a"
 cfg     = config.load()
 adapter = get_adapter(cfg)
 
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_tracking_uri("sqlite:///reports/mlflow.db")
 run     = mlflow.get_run(RUN_ID)
 
 lineage = {
@@ -28,7 +27,7 @@ lineage = {
     "metric-test":      str(round(run.data.metrics["test_roc_auc"], 4)),
 }
 
-artifact_gcs = f"{cfg.blob_uri.rstrip('/')}/models/lab2-chosen"
+artifact_gcs = f"{cfg.blob_uri.rstrip('/')}/models/trial-05"
 
 version = adapter.register_model(
     model_uri=artifact_gcs,

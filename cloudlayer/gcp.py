@@ -195,3 +195,22 @@ class GcpAdapter(CloudAdapter):
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
     # teardown                          -> Lab 5 (filter resources by label)
+    def teardown(self, tags: dict[str, str]) -> list[str]:
+        """Delete resources tagged with the given labels. Returns list of deleted resource names."""
+        aiplatform.init(
+            project=self.cfg.project_id,
+            location=self.cfg.region,
+        )
+
+        deleted = []
+
+        # Delete Custom Jobs with matching labels
+        jobs = aiplatform.CustomJob.list(
+            filter=" AND ".join(f'labels.{k}="{v}"' for k, v in tags.items())
+        )
+        for job in jobs:
+            job.delete()
+            deleted.append(job.resource_name)
+            print(f"Deleted job: {job.resource_name}")
+
+        return deleted
