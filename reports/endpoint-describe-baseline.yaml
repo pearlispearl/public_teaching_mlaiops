@@ -1,0 +1,25 @@
+createTime: '2026-09-24T17:20:18.481141Z'
+deployedModels:
+- createTime: '2026-09-24T17:20:26.242195Z'
+  dedicatedResources:
+    machineSpec:
+      machineType: n1-standard-4
+    maxReplicaCount: 1
+    minReplicaCount: 1
+  displayName: itcs355-endpoint-deployed
+  id: '923723907750428672'
+  model: projects/116618257996/locations/asia-southeast1/models/3350216327879983104
+  modelVersionId: '1'
+  status:
+    availableReplicaCount: 1
+    lastUpdateTime: '2026-09-24T18:12:25.370688Z'
+displayName: itcs355-endpoint
+etag: AMEw9yONpIn9a2pqHLCJ1vKMEo-p8aAKQuc_A1CpB0jhtPgwCh58oBAlvYGq4tu226Iy
+labels:
+  course: itcs355
+  lab: '3'
+  student: itcs355-6688015
+name: projects/116618257996/locations/asia-southeast1/endpoints/6644579664092200960
+trafficSplit:
+  '923723907750428672': 100
+updateTime: '2026-09-24T17:35:45.608121Z'
