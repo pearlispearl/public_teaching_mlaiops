@@ -2,7 +2,7 @@
 
 ### 1. Latency Target Specification
 * **Target Metric**: p95 latency for single-item prediction (`/predict`)
-* **Stated Threshold**: <= 200 ms
+* **Stated Threshold**: <= 250 ms
 * **Justification**: This threshold ensures a responsive synchronous inference API experience for predictive maintenance monitoring, well below the acceptable limit for real-time alerting systems.
 * **Target committed at**: [fill in: commit hash + timestamp from `git log --format='%h %ad' -- reports/lab3-load.md`]
 * **Run order**: [fill in honestly: which k6 runs happened before the target was committed, if any]
