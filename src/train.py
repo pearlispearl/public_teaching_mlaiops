@@ -57,7 +57,15 @@ def main() -> None:
     train_df, val_df, test_df = data.split(df, seed=seed)
 
     mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
-    mlflow.set_experiment(args.experiment)
+
+    exp_name = args.experiment
+    exp = mlflow.get_experiment_by_name(exp_name)
+    if exp is None:
+        mlflow.create_experiment(
+            exp_name,
+            artifact_location=f"{cfg.blob_uri.rstrip('/')}/mlartifacts",
+        )
+    mlflow.set_experiment(exp_name)
 
     mlflow.end_run()
     with mlflow.start_run(run_name=args.run_name):
@@ -83,7 +91,7 @@ def main() -> None:
             max_depth=args.max_depth,
             min_samples_leaf=args.min_samples_leaf,
             random_state=seed,
-            n_jobs=-1,
+            n_jobs=1,
         )
         model.fit(train_df[data.FEATURES], train_df[data.TARGET])
 
