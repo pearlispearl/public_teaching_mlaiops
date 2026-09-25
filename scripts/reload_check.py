@@ -13,13 +13,43 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import mlflow
+import joblib
+from google.cloud import aiplatform
 
 from src import config, data
+from cloudlayer.factory import get_adapter
+
+
+def _load_from_registry(cfg, name: str, version: str):
+    """Pull the model artifact from Vertex AI Model Registry by name + version.
+
+    Task 4 registers via adapter.register_model() -> aiplatform.Model.upload(),
+    which lands in Vertex AI's own registry -- not MLflow's. This must match.
+    """
+    aiplatform.init(project=cfg.project_id, location=cfg.region)
+
+    candidates = aiplatform.Model.list(filter=f'display_name="{name}"')
+    if not candidates:
+        raise RuntimeError(f"No model with display_name={name!r} found in Vertex AI Model Registry")
+
+    match = next((m for m in candidates if m.version_id == str(version)), None)
+    if match is None:
+        available = [m.version_id for m in candidates]
+        raise RuntimeError(
+            f"No version={version!r} for {name!r}. Available versions: {available}"
+        )
+
+    adapter = get_adapter(cfg)
+    with tempfile.TemporaryDirectory() as tmp:
+        local_path = str(Path(tmp) / "model.joblib")
+        artifact_key = f"{match.gca_resource.artifact_uri.rstrip('/')}/model.joblib"
+        adapter.download(artifact_key, local_path)
+        return joblib.load(local_path)
 
 
 def main() -> int:
@@ -30,11 +60,9 @@ def main() -> int:
     args = ap.parse_args()
 
     cfg = config.load(strict=False)
-    mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
 
-    uri = f"models:/{args.name}/{args.version}"
-    print(f"loading {uri}")
-    model = mlflow.sklearn.load_model(uri)
+    print(f"loading {args.name}:{args.version} from Vertex AI Model Registry")
+    model = _load_from_registry(cfg, args.name, args.version)
 
     df = data.load_raw(cfg.raw_path)
     _, _, test_df = data.split(df, seed=20260101)

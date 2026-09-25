@@ -24,6 +24,12 @@ Lab 2 notes:
 from __future__ import annotations
 import time
 import subprocess
+import logging
+import google.auth
+import google.auth.transport.requests
+import requests
+import mlflow
+
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any
@@ -33,7 +39,7 @@ from google.cloud.aiplatform_v1.types import custom_job as gca_custom_job
 from google.cloud.aiplatform_v1.types import job_state
 from cloudlayer.base import CloudAdapter
 
-
+log = logging.getLogger(__name__)
 
 class GcpAdapter(CloudAdapter):
     def upload(self, local_path: str, key: str) -> str:
@@ -192,6 +198,120 @@ class GcpAdapter(CloudAdapter):
 
         return str(model.version_id)
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
+    # --- Lab 3 -----------------------------------------------------------------
+
+    def deploy(self, model_ref: str, endpoint_name: str, instance_type: str = "n1-standard-4") -> str:
+        """Deploy image to a Vertex AI Endpoint with health/ready healthchecks."""
+        aiplatform.init(
+            project=self.cfg.project_id,
+            location=self.cfg.region,
+            staging_bucket=self.cfg.blob_uri,
+        )
+
+        if ":" in model_ref:
+            registry_name, registry_version = model_ref.split(":", 1)
+        else:
+            registry_name = model_ref
+            try:
+                mlflow.set_tracking_uri("sqlite:///reports/mlflow.db")
+                client = mlflow.tracking.MlflowClient()
+                versions = client.get_latest_versions(registry_name, stages=["None", "Staging", "Production"])
+                if versions:
+                    registry_version = str(max([int(v.version) for v in versions]))
+                else:
+                    registry_version = "1"
+            except Exception as exc:
+                log.warning(
+                    "Failed to detect latest model version for %s: %s",
+                    registry_name,
+                    exc,
+                )
+                raise RuntimeError(
+                    f"Cannot determine model version for {registry_name}"
+                ) from exc
+
+        # 1. Pull git short hash to match tag with Makefile
+        tag = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode("utf-8").strip()
+        local_tag = f"itcs355-serve:{tag}"
+        image_uri = self.push_image(local_tag)
+        # 2. Upload Model to Vertex Model Registry specifying container and health routes
+        model = aiplatform.Model.upload(
+            display_name=endpoint_name,
+            artifact_uri=self.cfg.blob_uri, # or specific model path
+            serving_container_image_uri=image_uri,
+            serving_container_predict_route="/predict",
+            serving_container_health_route="/health",
+            serving_container_ports=[8080],
+            serving_container_environment_variables={
+                "MODEL_REGISTRY_NAME":  registry_name,
+                "MODEL_VERSION":        registry_version,
+                "MLFLOW_TRACKING_URI":  "sqlite:////tmp/mlflow.db",
+                "BLOB_URI":             self.cfg.blob_uri,
+                "CLOUD_PROVIDER":       "gcp",
+                "PROJECT_ID":           self.cfg.project_id,
+            },
+            labels=self.cfg.tags(3),
+        )
+
+        # 3. Create Endpoint if not exists, or get existing
+        endpoints = aiplatform.Endpoint.list(
+            filter=f'display_name="{endpoint_name}"'
+        )
+        if endpoints:
+            endpoint = endpoints[0]
+        else:
+            endpoint = aiplatform.Endpoint.create(
+                display_name=endpoint_name,
+                labels=self.cfg.tags(3),
+            )
+
+        # 4. Deploy model to endpoint
+        model.deploy(
+            endpoint=endpoint,
+            deployed_model_display_name=f"{endpoint_name}-deployed",
+            machine_type=instance_type,
+            min_replica_count=1,
+            max_replica_count=1,
+            traffic_percentage=100,
+            )
+        return endpoint.resource_name
+
+    def invoke(self, endpoint_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+        aiplatform.init(
+            project=self.cfg.project_id,
+            location=self.cfg.region,
+        )
+
+        endpoints = aiplatform.Endpoint.list(
+            filter=f'display_name="{endpoint_name}"'
+        )
+        if not endpoints:
+            raise RuntimeError(f"Endpoint '{endpoint_name}' not found.")
+
+        endpoint = endpoints[0]
+        endpoint_id = endpoint.name.split("/")[-1]
+
+        credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        credentials.refresh(google.auth.transport.requests.Request())
+
+        url = (
+            f"https://{self.cfg.region}-aiplatform.googleapis.com/v1/"
+            f"projects/{self.cfg.project_id}/locations/{self.cfg.region}/"
+            f"endpoints/{endpoint_id}:rawPredict"
+        )
+
+        headers = {
+            "Authorization": f"Bearer {credentials.token}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code != 200:
+            raise RuntimeError(f"Prediction failed [{response.status_code}]: {response.text}")
+
+        return response.json()    
     # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
     # teardown                          -> Lab 5 (filter resources by label)
@@ -212,5 +332,25 @@ class GcpAdapter(CloudAdapter):
             job.delete()
             deleted.append(job.resource_name)
             print(f"Deleted job: {job.resource_name}")
+
+        # Delete Endpoints with matching labels (Undeploy models first to prevent errors)
+        endpoints = aiplatform.Endpoint.list(
+            filter=" AND ".join(f'labels.{k}="{v}"' for k, v in tags.items())
+        )
+        for ep in endpoints:
+            print(f"Undeploying models from endpoint: {ep.display_name}")
+            ep.undeploy_all()
+            ep.delete()
+            deleted.append(ep.resource_name)
+            print(f"Deleted endpoint: {ep.resource_name}")
+
+        # Delete Models with matching labels
+        models = aiplatform.Model.list(
+            filter=" AND ".join(f'labels.{k}="{v}"' for k, v in tags.items())
+        )
+        for model in models:
+            model.delete()
+            deleted.append(model.resource_name)
+            print(f"Deleted model: {model.resource_name}")
 
         return deleted

@@ -13,7 +13,7 @@ MIN_SAMPLES_LEAF ?= 5
 RUN_NAME ?=
 INSTANCE ?= n1-standard-4
 REGISTRY ?= asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
-
+ENDPOINT_NAME ?= itcs355-endpoint
 
 .PHONY: help setup cloud-check data test portability-audit train image image-push reproduce verify clean teardown \
         train-remote tune compare reload-check serve serve-image loadtest drift inject-drift pipeline cost swap-check llm-eval llm-gate
@@ -67,7 +67,7 @@ verify: ## Check the produced metric against the README claim
 
 teardown: ## Delete every resource tagged course=itcs355 for this lab
 	python -c "from src import config; from cloudlayer.factory import get_adapter; \
-	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(1)))"
+	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(3)))"
 
 clean: ## Remove local artifacts
 	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json .pytest_cache
@@ -115,6 +115,19 @@ loadtest: ## Load test at three concurrency levels
 	  echo "=== $$vus VUs ==="; \
 	  k6 run -e TARGET=$(TARGET) -e VUS=$$vus loadtest/k6.js || true; \
 	done
+
+deploy: serve-image ## Build and deploy serving image via adapter
+	python -c "\
+from src import config; from cloudlayer.factory import get_adapter; \
+cfg = config.load(); adapter = get_adapter(cfg); \
+model_ref = 'itcs355-6688015'; \
+print(adapter.deploy(model_ref, '$(ENDPOINT_NAME)', '$(INSTANCE)'))"
+
+smoke: ## Run smoke test against the live endpoint
+	python -c "\
+from src import config; from cloudlayer.factory import get_adapter; \
+cfg = config.load(); adapter = get_adapter(cfg); \
+print(adapter.invoke('$(ENDPOINT_NAME)', {'temp_c': 75.0, 'vibration_mm_s': 12.5, 'pressure_kpa': 250.0, 'hours_since_service': 120.0, 'load_pct': 65.0, 'ambient_humidity': 45.0}))"
 
 # --- Lab 4 -------------------------------------------------------------------
 inject-drift: ## Shift a feature's distribution on purpose

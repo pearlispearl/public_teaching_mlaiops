@@ -19,9 +19,9 @@ run     = mlflow.get_run(RUN_ID)
 lineage = {
     "git-commit":       run.data.tags["git_commit"],
     "data-version":     run.data.tags["data_fingerprint"],
-    "mlflow-run-id":    RUN_ID[:20],
+    "mlflow-run-id":    RUN_ID,
     "training-job-id":  TRAINING_JOB.split("/")[-1],
-    "image-digest":     IMAGE_DIGEST.split("@sha256:")[-1][:20],
+    "image-digest":     IMAGE_DIGEST.split("@sha256:")[-1][:63],
     "seed":             run.data.params.get("seed", "20260101"),
     "metric-val":       str(round(run.data.metrics["val_roc_auc"], 4)),
     "metric-test":      str(round(run.data.metrics["test_roc_auc"], 4)),
