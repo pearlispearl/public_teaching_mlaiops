@@ -7,8 +7,8 @@ data/_local_blob/
 .dvc/cache/
 
 # Local tracking store
-mlruns/
 mlartifacts/
+mlruns/
 mlflow.db
 
 reports/*.json
