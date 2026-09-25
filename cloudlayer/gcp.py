@@ -240,7 +240,7 @@ class GcpAdapter(CloudAdapter):
             artifact_uri=self.cfg.blob_uri, # or specific model path
             serving_container_image_uri=image_uri,
             serving_container_predict_route="/predict",
-            serving_container_health_route="/health",
+            serving_container_health_route="/ready",
             serving_container_ports=[8080],
             serving_container_environment_variables={
                 "MODEL_REGISTRY_NAME":  registry_name,
