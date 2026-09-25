@@ -31,7 +31,7 @@ def fitted():
     df = data.load_raw(RAW)
     train_df, _, test_df = data.split(df, seed=seed)
     model = RandomForestClassifier(n_estimators=120, max_depth=8, min_samples_leaf=5,
-                                   random_state=seed, n_jobs=-1)
+                                   random_state=seed, n_jobs=1)
     model.fit(train_df[data.FEATURES], train_df[data.TARGET])
     return model, test_df
 
