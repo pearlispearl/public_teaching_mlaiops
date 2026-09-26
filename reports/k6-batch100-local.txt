@@ -1,3 +1,4 @@
+=== BATCH (100 rows x 1 request, 20 iterations) ===
 
          /\      Grafana   /‾‾/  
     /\  /  \     |\  __   /  /   
@@ -17,24 +18,24 @@
 
   █ TOTAL RESULTS 
 
-    checks_total.......: 20      157.436927/s
+    checks_total.......: 20      162.547444/s
     checks_succeeded...: 100.00% 20 out of 20
     checks_failed......: 0.00%   0 out of 20
 
     ✓ status 200
 
     HTTP
-    http_req_duration..............: avg=6.19ms min=5.48ms med=5.79ms max=9.29ms  p(90)=7.08ms p(95)=7.75ms
-      { expected_response:true }...: avg=6.19ms min=5.48ms med=5.79ms max=9.29ms  p(90)=7.08ms p(95)=7.75ms
+    http_req_duration..............: avg=5.81ms min=5.44ms med=5.7ms  max=6.82ms p(90)=6.11ms p(95)=6.15ms
+      { expected_response:true }...: avg=5.81ms min=5.44ms med=5.7ms  max=6.82ms p(90)=6.11ms p(95)=6.15ms
     http_req_failed................: 0.00%  0 out of 20
-    http_reqs......................: 20     157.436927/s
+    http_reqs......................: 20     162.547444/s
 
     EXECUTION
-    iteration_duration.............: avg=6.34ms min=5.52ms med=5.82ms max=11.49ms p(90)=7.15ms p(95)=7.91ms
-    iterations.....................: 20     157.436927/s
+    iteration_duration.............: avg=6.13ms min=5.47ms med=5.74ms max=12.3ms p(90)=6.15ms p(95)=6.47ms
+    iterations.....................: 20     162.547444/s
 
     NETWORK
-    data_received..................: 45 kB  354 kB/s
+    data_received..................: 45 kB  365 kB/s
     data_sent......................: 237 kB 1.9 MB/s
 
 

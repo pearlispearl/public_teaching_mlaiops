@@ -1,3 +1,4 @@
+=== SINGLE (100 individual requests) ===
 
          /\      Grafana   /‾‾/  
     /\  /  \     |\  __   /  /   
@@ -17,25 +18,25 @@
 
   █ TOTAL RESULTS 
 
-    checks_total.......: 100     181.958124/s
+    checks_total.......: 100     188.540152/s
     checks_succeeded...: 100.00% 100 out of 100
     checks_failed......: 0.00%   0 out of 100
 
     ✓ status 200
 
     HTTP
-    http_req_duration..............: avg=5.41ms med=5.19ms p(95)=6.46ms p(99)=9.01ms  max=13.04ms
-      { expected_response:true }...: avg=5.41ms med=5.19ms p(95)=6.46ms p(99)=9.01ms  max=13.04ms
+    http_req_duration..............: avg=5.25ms med=5.1ms  p(95)=5.93ms p(99)=7.45ms max=8.36ms 
+      { expected_response:true }...: avg=5.25ms med=5.1ms  p(95)=5.93ms p(99)=7.45ms max=8.36ms 
     http_req_failed................: 0.00% 0 out of 100
-    http_reqs......................: 100   181.958124/s
+    http_reqs......................: 100   188.540152/s
 
     EXECUTION
-    iteration_duration.............: avg=5.49ms med=5.23ms p(95)=6.49ms p(99)=10.75ms max=13.1ms 
-    iterations.....................: 100   181.958124/s
+    iteration_duration.............: avg=5.3ms  med=5.13ms p(95)=5.97ms p(99)=7.54ms max=10.08ms
+    iterations.....................: 100   188.540152/s
 
     NETWORK
-    data_received..................: 26 kB 47 kB/s
-    data_sent......................: 28 kB 51 kB/s
+    data_received..................: 26 kB 49 kB/s
+    data_sent......................: 28 kB 53 kB/s
 
 
 

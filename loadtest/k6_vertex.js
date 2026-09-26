@@ -7,6 +7,8 @@ export const options = {
   summaryTrendStats: ['avg', 'med', 'p(95)', 'p(99)', 'max'],
 };
 
+console.log(`Target URL: ${__ENV.URL}`);
+
 const payload = JSON.stringify({
   temp_c: 75.0, vibration_mm_s: 12.5, pressure_kpa: 250.0,
   hours_since_service: 120.0, load_pct: 65.0, ambient_humidity: 45.0,
