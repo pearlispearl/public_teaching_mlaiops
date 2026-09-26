@@ -1,0 +1,88 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: loadtest/k6_vertex.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 100 iterations shared among 1 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+
+running (00m01.0s), 1/1 VUs, 2 complete and 0 interrupted iterations
+default   [   2% ] 1 VUs  00m01.0s/10m0s  002/100 shared iters
+
+running (00m02.0s), 1/1 VUs, 2 complete and 0 interrupted iterations
+default   [   2% ] 1 VUs  00m02.0s/10m0s  002/100 shared iters
+
+running (00m03.0s), 1/1 VUs, 8 complete and 0 interrupted iterations
+default   [   8% ] 1 VUs  00m03.0s/10m0s  008/100 shared iters
+
+running (00m04.0s), 1/1 VUs, 15 complete and 0 interrupted iterations
+default   [  15% ] 1 VUs  00m04.0s/10m0s  015/100 shared iters
+
+running (00m05.0s), 1/1 VUs, 24 complete and 0 interrupted iterations
+default   [  24% ] 1 VUs  00m05.0s/10m0s  024/100 shared iters
+
+running (00m06.0s), 1/1 VUs, 32 complete and 0 interrupted iterations
+default   [  32% ] 1 VUs  00m06.0s/10m0s  032/100 shared iters
+
+running (00m07.0s), 1/1 VUs, 41 complete and 0 interrupted iterations
+default   [  41% ] 1 VUs  00m07.0s/10m0s  041/100 shared iters
+
+running (00m08.0s), 1/1 VUs, 50 complete and 0 interrupted iterations
+default   [  50% ] 1 VUs  00m08.0s/10m0s  050/100 shared iters
+
+running (00m09.0s), 1/1 VUs, 59 complete and 0 interrupted iterations
+default   [  59% ] 1 VUs  00m09.0s/10m0s  059/100 shared iters
+
+running (00m10.0s), 1/1 VUs, 67 complete and 0 interrupted iterations
+default   [  67% ] 1 VUs  00m10.0s/10m0s  067/100 shared iters
+
+running (00m11.0s), 1/1 VUs, 72 complete and 0 interrupted iterations
+default   [  72% ] 1 VUs  00m11.0s/10m0s  072/100 shared iters
+
+running (00m12.0s), 1/1 VUs, 77 complete and 0 interrupted iterations
+default   [  77% ] 1 VUs  00m12.0s/10m0s  077/100 shared iters
+
+running (00m13.0s), 1/1 VUs, 87 complete and 0 interrupted iterations
+default   [  87% ] 1 VUs  00m13.0s/10m0s  087/100 shared iters
+
+running (00m14.0s), 1/1 VUs, 96 complete and 0 interrupted iterations
+default   [  96% ] 1 VUs  00m14.0s/10m0s  096/100 shared iters
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 100     6.956345/s
+    checks_succeeded...: 100.00% 100 out of 100
+    checks_failed......: 0.00%   0 out of 100
+
+    ✓ status 200
+
+    HTTP
+    http_req_duration..............: avg=142.67ms med=109.22ms p(95)=230.96ms p(99)=1.17s max=1.34s
+      { expected_response:true }...: avg=142.67ms med=109.22ms p(95)=230.96ms p(99)=1.17s max=1.34s
+    http_req_failed................: 0.00% 0 out of 100
+    http_reqs......................: 100   6.956345/s
+
+    EXECUTION
+    iteration_duration.............: avg=143.71ms med=109.5ms  p(95)=231.23ms p(99)=1.17s max=1.35s
+    iterations.....................: 100   6.956345/s
+    vus............................: 1     min=1        max=1
+    vus_max........................: 1     min=1        max=1
+
+    NETWORK
+    data_received..................: 32 kB 2.2 kB/s
+    data_sent......................: 25 kB 1.7 kB/s
+
+
+
+
+running (00m14.4s), 0/1 VUs, 100 complete and 0 interrupted iterations
+default ✓ [ 100% ] 1 VUs  00m14.4s/10m0s  100/100 shared iters
