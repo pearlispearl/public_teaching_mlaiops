@@ -1,0 +1,44 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: loadtest/k6_batch.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 20 iterations shared among 1 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 20      157.436927/s
+    checks_succeeded...: 100.00% 20 out of 20
+    checks_failed......: 0.00%   0 out of 20
+
+    ✓ status 200
+
+    HTTP
+    http_req_duration..............: avg=6.19ms min=5.48ms med=5.79ms max=9.29ms  p(90)=7.08ms p(95)=7.75ms
+      { expected_response:true }...: avg=6.19ms min=5.48ms med=5.79ms max=9.29ms  p(90)=7.08ms p(95)=7.75ms
+    http_req_failed................: 0.00%  0 out of 20
+    http_reqs......................: 20     157.436927/s
+
+    EXECUTION
+    iteration_duration.............: avg=6.34ms min=5.52ms med=5.82ms max=11.49ms p(90)=7.15ms p(95)=7.91ms
+    iterations.....................: 20     157.436927/s
+
+    NETWORK
+    data_received..................: 45 kB  354 kB/s
+    data_sent......................: 237 kB 1.9 MB/s
+
+
+
+
+running (00m00.1s), 0/1 VUs, 20 complete and 0 interrupted iterations
+default ✓ [ 100% ] 1 VUs  00m00.1s/10m0s  20/20 shared iters

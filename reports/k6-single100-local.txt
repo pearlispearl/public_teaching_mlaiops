@@ -1,0 +1,44 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: loadtest/k6_vertex.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 100 iterations shared among 1 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 100     181.958124/s
+    checks_succeeded...: 100.00% 100 out of 100
+    checks_failed......: 0.00%   0 out of 100
+
+    ✓ status 200
+
+    HTTP
+    http_req_duration..............: avg=5.41ms med=5.19ms p(95)=6.46ms p(99)=9.01ms  max=13.04ms
+      { expected_response:true }...: avg=5.41ms med=5.19ms p(95)=6.46ms p(99)=9.01ms  max=13.04ms
+    http_req_failed................: 0.00% 0 out of 100
+    http_reqs......................: 100   181.958124/s
+
+    EXECUTION
+    iteration_duration.............: avg=5.49ms med=5.23ms p(95)=6.49ms p(99)=10.75ms max=13.1ms 
+    iterations.....................: 100   181.958124/s
+
+    NETWORK
+    data_received..................: 26 kB 47 kB/s
+    data_sent......................: 28 kB 51 kB/s
+
+
+
+
+running (00m00.5s), 0/1 VUs, 100 complete and 0 interrupted iterations
+default ✓ [ 100% ] 1 VUs  00m00.5s/10m0s  100/100 shared iters
