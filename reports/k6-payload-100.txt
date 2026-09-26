@@ -1,0 +1,45 @@
+=== ROWS=100 ===
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: loadtest/k6_payload.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 1 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 20 iterations shared among 1 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 20      156.119494/s
+    checks_succeeded...: 100.00% 20 out of 20
+    checks_failed......: 0.00%   0 out of 20
+
+    ✓ status 200
+
+    HTTP
+    http_req_duration..............: avg=6.29ms min=5.45ms med=5.84ms max=9.85ms  p(90)=7.57ms p(95)=8.17ms
+      { expected_response:true }...: avg=6.29ms min=5.45ms med=5.84ms max=9.85ms  p(90)=7.57ms p(95)=8.17ms
+    http_req_failed................: 0.00%  0 out of 20
+    http_reqs......................: 20     156.119494/s
+
+    EXECUTION
+    iteration_duration.............: avg=6.39ms min=5.48ms med=5.87ms max=11.21ms p(90)=7.62ms p(95)=8.29ms
+    iterations.....................: 20     156.119494/s
+
+    NETWORK
+    data_received..................: 45 kB  351 kB/s
+    data_sent......................: 237 kB 1.8 MB/s
+
+
+
+
+running (00m00.1s), 0/1 VUs, 20 complete and 0 interrupted iterations
+default ✓ [ 100% ] 1 VUs  00m00.1s/10m0s  20/20 shared iters
