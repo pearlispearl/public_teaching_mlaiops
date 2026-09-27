@@ -12,7 +12,7 @@
   worker-count and health-route fixes (`0d3b45e`, `112e281`, 22:49–22:54) and before the
   retest that produced the 228.88ms result reported in §2c. The 250ms figure was therefore
   fixed in the repo roughly an hour before the measurement it is compared against existed.
-  The 200ms-labeled baseline run (§2a, `4c6580a`) is unaffected either way, since none of
+  The 200ms labeled baseline run (§2a, `4c6580a`) is unaffected either way, since none of
   those results met even the looser 250ms bound.
 ---
 
@@ -30,7 +30,7 @@ Raw output: `reports/k6-vus1.txt`, `reports/k6-vus10.txt`, `reports/k6-vus50.txt
 | **10 VUs** | 1459 | 24.22 | 407.49 ms | 609.57 ms | 772.4 ms | 1.56 s | 0.00% |
 | **50 VUs** | 1506 | 24.51 | 2.02 s | 2.63 s | 2.95 s | 3.28 s | 0.00% |
 
-None of the three levels met the 250 ms target. Throughput plateaued at ~24 RPS regardless of concurrency (10 VUs: 24.22 RPS; 50 VUs: 24.51 RPS), while p50 grew roughly in proportion to VUs (407 ms → 2.02 s) — the signature of queueing against a fixed-capacity service, not a per-request slowdown.
+None of the three levels met the 250 ms target. Throughput plateaued at ~24 RPS regardless of concurrency (10 VUs: 24.22 RPS; 50 VUs: 24.51 RPS), while p50 grew roughly in proportion to VUs (407 ms → 2.02 s) — the signature of queueing against a fixed capacity service, not a per-request slowdown.
 
 **Root cause investigation:**
 * Little's Law check: 10/0.410s ≈ 24.4 RPS and 50/2.02s ≈ 24.8 RPS — internally consistent with measured throughput, confirming a queueing bottleneck.
@@ -63,7 +63,7 @@ Raw output: `reports/k6-vus1-retest.txt`, `reports/k6-vus5-retest.txt`, `reports
 
 * **Breaking Point**: p95 crosses the 250 ms target between **5 and 10 concurrent VUs** — 228.88 ms at 5 VUs (within target) vs. 281.75 ms at 10 VUs (13% over target). No errors appear at either level, so the break is latency-driven (queueing), not failure-driven.
 * **Saturation**: throughput continues to grow with concurrency (34 → 57 → 73 RPS from 5→10→50 VUs) but with strongly diminishing returns — a 5x increase in VUs (10→50) only yields a 1.3x increase in throughput, while p50 grows 4x (161ms → 656ms). This is consistent with the service approaching a new, higher capacity ceiling around 70–75 RPS.
-* **Anomaly noted**: one transient failure occurred at 1 VU (0.44%, 1/223 requests). All other levels showed 0% errors; this is treated as an isolated connection-level blip rather than a systemic issue, since it did not recur at any other concurrency.
+* **Anomaly noted**: one transient failure occurred at 1 VU (0.44%, 1/223 requests). All other levels showed 0% errors; this is treated as an isolated connection level blip rather than a systemic issue, since it did not recur at any other concurrency.
 
 **Conclusion**: the original bottleneck was **service-level misconfiguration** (worker count and health-check route), not platform or network limits. After fixing both, the endpoint meets the 250 ms target at low concurrency (1, 5 VUs) but breaks between 5–10 VUs — an honest breaking point under the corrected configuration, not a resolved-to-pass result at all tested levels.
 
@@ -75,7 +75,7 @@ Raw output: `reports/k6-vus1-retest.txt`, `reports/k6-vus5-retest.txt`, `reports
 
 * **Setup**: Measured against the local container (`make serve`), not the Vertex endpoint.
   Vertex's `rawPredict` is bound to a single fixed route (`/predict`, declared via
-  `serving_container_predict_route` at model-upload time in `cloudlayer/gcp.py`), so
+  `serving_container_predict_route` at model upload time in `cloudlayer/gcp.py`), so
   `/predict/batch` cannot be reached through the deployed Model resource without a second
   deployment. Confirmed via direct curl: sending a `{"rows": [...]}` body to the Vertex
   endpoint returns 422 (`"loc":["body","temp_c"],"msg":"Field required"`), because Vertex
@@ -102,7 +102,7 @@ Raw output: `reports/k6-vus1-retest.txt`, `reports/k6-vus5-retest.txt`, `reports
 #### B. Payload Size Impact
 
 * **Setup**: Measured locally (`make serve`) via `/predict/batch` with varying row counts
-  (1, 10, 50, 100 — the schema's max), since the single-item `PredictRequest` schema has no
+  (1, 10, 50, 100 the schema's max), since the single item `PredictRequest` schema has no
   string/array fields to inflate and `extra: "forbid"` blocks adding dummy fields. Same
   Vertex `rawPredict` route-binding limitation as Task A applies here.
   Script: `loadtest/k6_payload.js`. Raw output: `reports/k6-payload-{1,10,50,100}.txt`.
@@ -145,7 +145,7 @@ Raw output: `reports/k6-vus1-retest.txt`, `reports/k6-vus5-retest.txt`, `reports
   | p99 | 418.9 ms | 456.97 ms | +9.1% |
   | Hourly cost (on-demand, asia-southeast1) | ~$0.2016 | ~$0.4032 | +100% |
 
-  Doubling vCPU count yields only a 6.2% p95 improvement and an 8% throughput gain — far
+  Doubling vCPU count yields only a 6.2% p95 improvement and an 8% throughput gain far
   short of the linear scaling one vCPU-doubling might suggest. This indicates the bottleneck
   at concurrency 10 is no longer primarily CPU/worker contention (which the earlier
   worker=2→4 fix addressed), but a mix of fixed network RTT (Bangkok to asia-southeast1)
@@ -171,11 +171,11 @@ Raw output: `reports/k6-vus1-retest.txt`, `reports/k6-vus5-retest.txt`, `reports
   label was consulted.
 * **Detection time: 2.34 seconds** (7th request).
 * Reveal (after flagging): v1-good n=181 (90.5%, avg_prob=0.3330, avg_latency=313.2ms);
-  v2-worse n=19 (9.5%, avg_prob=0.3739, avg_latency=297.3ms) — split matches configured
+  v2-worse n=19 (9.5%, avg_prob=0.3739, avg_latency=297.3ms) split matches configured
   90/10 within sampling noise.
 
 ### Rollback
-* **17:32:54Z** — Rollback initiated: traffic-split updated to v1-good=100%, v2-worse=0%.
+* **17:32:54Z** — Rollback initiated: traffic split updated to v1-good=100%, v2-worse=0%.
 * **17:33:06Z** — Confirmed via `endpoints describe`: `trafficSplit` = 
   `{1278945328359276544: 100, 2736985707720474624: 0}` — traffic fully moved, 12s after
   the update call.
@@ -188,27 +188,27 @@ Raw output: `reports/k6-vus1-retest.txt`, `reports/k6-vus5-retest.txt`, `reports
 
 #### Five-line summary
 
-1. **What metric revealed it**: a second, distinct prediction-probability value (0.3739) 
-   appearing alongside the baseline (0.3330) for repeated calls with a fixed input — a
-   healthy single-model endpoint should return one deterministic score, so a second value
+1. **What metric revealed it**: a second, distinct prediction probability value (0.3739) 
+   appearing alongside the baseline (0.3330) for repeated calls with a fixed input a
+   healthy single model endpoint should return one deterministic score, so a second value
    is itself the anomaly.
 2. **How long detection took**: 2.34 seconds (the 7th of 200 probe requests).
 3. **What would have made it faster**: little would help here, since the signal was a
    literal second value with no averaging required; in a realistic setup using a lagging
-   business metric (e.g., outcomes needing ground-truth labels) detection would take much
+   business metric (e.g., outcomes needing ground truth labels) detection would take much
    longer, bounded by label latency rather than request count.
 4. **What would have happened at 50/50**: the minority variant would be sampled ~5x more
-   often, likely cutting detection time further — at the cost of exposing 5x more live
+   often, likely cutting detection time further at the cost of exposing 5x more live
    traffic to the degraded model during that same window.
 5. **Net trade-off**: 90/10 traded slower detection for smaller blast radius; 50/50 trades
-   the reverse — faster signal, larger exposure if the canary is actually broken.
+   the reverse faster signal, larger exposure if the canary is actually broken.
 
 ## Task 5: Cost per thousand predictions 
 
 ### Method
 
 * Instance: `n1-standard-4`, on-demand, `asia-southeast1` → $0.2016/hr (Task 3, §2c)
-* Throughput: 34.02 RPS — the highest concurrency (5 VUs) at which p95 (228.88ms) still
+* Throughput: 34.02 RPS, the highest concurrency (5 VUs) at which p95 (228.88ms) still
   meets the stated ≤250ms target (Task 3, §2c). Using 10 VUs' 57.09 RPS would violate the
   endpoint's own passing condition.
 * Utilisation assumption: 11.8%. Derived from fleet size in the data generator
@@ -222,7 +222,7 @@ Cost per 1,000 predictions ≈ **$0.01395**
 #### Batch vs. warm endpoint 
 
 1. Batch can run at the endpoint's proven max throughput (72.81 RPS, no p95 SLA to respect),
-   giving a break-even volume of ≈6.29M predictions/day — the point where a warm endpoint
+   giving a break-even volume of ≈6.29M predictions/day, the point where a warm endpoint
    would itself hit 100% utilisation.
 2. At this fleet's actual volume (~345,600 predictions/day, 18x below break-even), batch
    is far cheaper: the warm endpoint sits at only ~12% utilisation, paying for idle compute
