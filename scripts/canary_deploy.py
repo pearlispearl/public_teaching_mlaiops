@@ -1,4 +1,4 @@
-"""Lab 3 -- Task 4 canary deployment.
+"""Lab 4 -- Task 4 canary deployment.
 
 Deploys two model versions to one endpoint with a 90/10 traffic split, using the same
 container image but different MODEL_BLOB_KEY per deployed model. Kept separate from
@@ -6,6 +6,11 @@ cloudlayer/gcp.py's deploy() (used by Tasks 1-3) to avoid touching graded code.
 """
 from __future__ import annotations
 import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from google.cloud import aiplatform
 from src import config
 
