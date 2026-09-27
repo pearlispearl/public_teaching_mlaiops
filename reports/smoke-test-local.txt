@@ -1,0 +1,10 @@
+=== /health ===
+{"status":"alive"}
+=== /ready ===
+{"status":"ready","model_version":"local"}
+=== /predict ===
+{"probability":0.005563057461613388,"model_version":"local"}
+=== /predict/batch ===
+{"probabilities":[0.005563057461613388],"model_version":"local"}
+=== 422 validation test ===
+{"detail":[{"type":"float_parsing","loc":["body","temp_c"],"msg":"Input should be a valid number, unable to parse string as a number","input":"not_a_number"},{"type":"missing","loc":["body","vibration_mm_s"],"msg":"Field required","input":{"temp_c":"not_a_number"}},{"type":"missing","loc":["body","pressure_kpa"],"msg":"Field required","input":{"temp_c":"not_a_number"}},{"type":"missing","loc":["body","hours_since_service"],"msg":"Field required","input":{"temp_c":"not_a_number"}},{"type":"missing","loc":["body","load_pct"],"msg":"Field required","input":{"temp_c":"not_a_number"}},{"type":"missing","loc":["body","ambient_humidity"],"msg":"Field required","input":{"temp_c":"not_a_number"}}]}

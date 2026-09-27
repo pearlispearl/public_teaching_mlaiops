@@ -72,5 +72,5 @@ def main():
                 print(f"[{i}/{n}] status={record['status']} latency={record['latency_ms']}ms ERROR={record.get('error')}")
 
 
-if __name__
+if __name__ == "__main__":
     main()
