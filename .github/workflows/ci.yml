@@ -14,11 +14,12 @@ permissions:
   contents: read
   id-token: write        # required for OIDC. See cd.yml — no long-lived keys anywhere.
 
+env:
+  BLOB_URI: file://${{ github.workspace }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    env: 
-      BLOB_URI: file://${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
         with:
