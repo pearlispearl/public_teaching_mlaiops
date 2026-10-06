@@ -68,7 +68,8 @@ def main() -> None:
 
     df = build(args.seed)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(args.out, index=False, lineterminator="\n")
+    # df.to_csv(args.out, index=False, lineterminator="\n")
+    df.drop(columns=["vibration_mm_s"]).to_csv(args.out, index=False, lineterminator="\n")
     rate = df["failed_within_7d"].mean()
     print(f"wrote {args.out}  rows={len(df)}  machines={df.machine_id.nunique()}  positive_rate={rate:.3f}")
 
