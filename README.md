@@ -64,9 +64,41 @@ secret scan (gitleaks, full history, fetch-depth: 0) → lint (ruff) → portabi
   OIDC federation.
 - Both jobs run on pull requests; image push and staging deploy are intended for `main` only.
 
+### Task 3: Evidence of a blocked bad commit
+
+PR #<เลข PR> (`lab4-bad-contract`, closed without merging) changed one line in
+`scripts/make_dataset.py` so the generated CSV dropped the `vibration_mm_s` column:
+
+```python
+df.drop(columns=["vibration_mm_s"]).to_csv(args.out, index=False, lineterminator="\n")
+```
+
+- **Failing run:** <ลิงก์ของ run ที่แดง>
+- **Where it stopped:** step "Data contract tests". Every step before it (secret scan,
+  lint, portability audit, unit tests, generate dataset) passed. "Model behaviour tests"
+  and "Service tests" did not run, and the `build` job was skipped because of
+  `needs: test`, so nothing was built or shipped.
+- **Test that caught it:** `test_schema_columns_present_and_typed`
+  (`AssertionError: missing columns: ['vibration_mm_s']`). This is the test that
+  names the cause.
+- **Also failed (as a consequence):** `test_no_nulls_in_required_columns` and
+  `test_features_within_plausible_ranges` raised `KeyError` when they tried to read the
+  missing column.
+- **Unit tests were unaffected:** the 17 tests in `tests/test_features.py` still passed
+  locally, which shows the failure came from the data contract, not from the code.
+
+```
+FAILED tests/test_data.py::test_schema_columns_present_and_typed - AssertionError: missing columns: ['vibration_mm_s']
+FAILED tests/test_data.py::test_no_nulls_in_required_columns - KeyError: "['vibration_mm_s'] not in index"
+FAILED tests/test_data.py::test_features_within_plausible_ranges - KeyError: 'vibration_mm_s'
+3 failed, 7 passed
+```
+
+Screenshot: `docs/images/lab4-blocked-run.png`
+
 ### Status
 
 - [x] Unit, data contract, model behaviour and integration tests; CI green on the PR
 - [ ] `cd.yml`: push image, deploy to staging, smoke test (still TODO; needs provider OIDC set up)
-- [ ] Task 3: evidence of a blocked bad commit
+- [x] Task 3: evidence of a blocked bad commit (PR #<เลข>, closed, not merged)
 - [ ] Tasks 4-6: dashboard and SLO, scheduled drift detector, injected drift and post-mortem
