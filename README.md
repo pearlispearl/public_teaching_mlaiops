@@ -1,31 +1,72 @@
-## LAB2
-## Model Promotion Policy
+## LAB4
 
-In a real organisation, promotion from **staging to production** should require:
+### Task 1: Test categories
 
-**Who:** A senior ML engineer, not the engineer who trained it.
-Separation of duties prevents the same person from training and shipping.
+Four categories, distinguished by *what makes them fail*:
 
-**Evidence required:**
-1. Validation metric meets or exceeds the current production model
-2. Test metric is not significantly worse than validation (no leakage)
-3. Data fingerprint and git commit are recorded and traceable
-4. At least one peer has reviewed the comparison report
-5. No data drift detected between training data and current production data
+- **Unit tests** (`tests/test_features.py`, CI step "Unit tests") — test the code in
+  `src/data.py`, `src/config.py` and `src/seeds.py` against tiny in-memory inputs. They fail
+  when the CODE changes, not when the data changes. Fast, no network, no dataset on disk.
+- **Data contract tests** (`tests/test_data.py`, CI step "Data contract tests") — assertions
+  about the DATA itself, plus the Lab 1 leakage test. They fail when an upstream producer
+  changes something, even with our code untouched.
+- **Model behaviour tests** (`tests/test_model_behaviour.py`, CI step "Model behaviour
+  tests") — assertions about what the trained model DOES. They fail when its learned
+  behaviour changes, independent of any aggregate metric.
+- **Integration test** (`.github/workflows/ci.yml`, `build` job) — builds the serving image,
+  trains and exports a model, starts the container with `MODEL_VERSION` set to the commit
+  SHA, calls `/predict`, and asserts that `probability` is a number in [0, 1] and that
+  `model_version` equals the commit SHA. The second assertion is the proof that the image
+  being served is the commit under test.
 
-## Checkpoint Resume Evidence
+### Data contract tests — incident each one would have caught
 
-Job `1777345977770835968` (2026-09-19) was cancelled after trial 10 completed
-(via `gcloud ai custom-jobs cancel`). The checkpoint was synced to GCS after
-each trial via `sync_checkpoint_up()`.
+| Test | Incident it catches |
+|---|---|
+| `test_schema_columns_present_and_typed` | An upstream sensor-ingestion change renames or drops `vibration_mm_s`, and the pipeline silently trains on fewer features (or crashes downstream instead of failing loudly here). |
+| `test_no_nulls_in_required_columns` | A sensor goes offline and its readings start arriving as nulls; a naive `fillna(0)` downstream would quietly corrupt every feature using that fallback. |
+| `test_features_within_plausible_ranges` | A unit-conversion bug (e.g. Fahrenheit shipped instead of Celsius for `temp_c`) ships readings 60-80 points off, inflating risk scores across the whole fleet without an obvious crash. |
+| `test_target_is_binary_and_not_degenerate` | An upstream label-generation change collapses `failed_within_7d` to all-zero (e.g. a broken join against the failure log), silently training a model that always predicts "safe". |
+| `test_identifier_is_unique` | A duplicate-ingestion bug (e.g. a retried consumer) double-counts some readings, skewing the training distribution. |
+| `test_no_machine_leaks_across_splits` (leakage, from Lab 1) | A refactor switches to a row-wise split: validation looks great and never survives production. This is the most common silent failure in this kind of project. |
 
-When re-submitted as job `4556066947858432000`, the job loaded the checkpoint
-from GCS and skipped trials 0–10 immediately, only trials 11–17 were run:
-trial 0: already done, skipping (resumed from checkpoint)
-trial 1: already done, skipping (resumed from checkpoint)
-...
-trial 10: already done, skipping (resumed from checkpoint)
-trial 11: {'n_estimators': 200, 'max_depth': 12, ...} -> val_roc_auc=0.8446
+### Unit tests — what each group protects against
 
-An interruption costs only the in-progress trial, not the entire study.
-Total spend across both jobs: 0.0116 THB.
+17 tests in `tests/test_features.py`. Property tests of the split that live in
+`tests/test_data.py` (`test_split_is_deterministic_given_seed`, `test_split_changes_with_seed`,
+`test_every_row_lands_in_exactly_one_split`) run in the data contract step alongside the
+leakage test.
+
+| Group | What it protects against |
+|---|---|
+| `split()`: machine counts per partition, sorted by `reading_id`, independent of input row order | A change to the rounding or slicing in `split()` silently shifts partition sizes, or makes results depend on how the CSV happened to be ordered. |
+| `split()` raises `ValueError` on an empty partition | A tiny dataset yields an empty validation set that only shows up much later as a NaN metric, far from the cause. |
+| `load_raw()` missing file; `data_fingerprint()` changes with content, not filename | Training on the wrong file, or a fingerprint that fails to change when the data does, which breaks the metric-to-data traceability from Lab 1. |
+| `SCHEMA` / `FEATURES` / `PLAUSIBLE_RANGES` consistent | A feature added to training but never added to the contract, so it is never checked. |
+| `config.load(strict=True)` raises on missing slots; exported variables beat `cloud.env` | A misconfigured environment that fails late instead of at startup; CI being unable to override a local file. |
+| `seeds.set_all()` repeatable, different seeds differ | A seed that is set but not applied, which makes runs irreproducible while the logs claim otherwise. |
+
+### Task 2: CI pipeline
+
+Triggered on pull request and on push to `main`. Job `test`, then job `build` (needs `test`):
+
+```
+secret scan (gitleaks, full history, fetch-depth: 0) → lint (ruff) → portability audit
+  → unit tests → generate dataset → data contract tests → model behaviour tests
+  → service tests
+  → [build] build training + serving images, tagged by commit SHA, never `latest`
+  → integration test
+```
+
+- `BLOB_URI` is set at workflow level so every job receives it (job-level `env` does not
+  carry across jobs, which is what broke the integration test the first time).
+- Secrets: nothing is stored in a committed file. `permissions: id-token: write` is set for
+  OIDC federation.
+- Both jobs run on pull requests; image push and staging deploy are intended for `main` only.
+
+### Status
+
+- [x] Unit, data contract, model behaviour and integration tests; CI green on the PR
+- [ ] `cd.yml`: push image, deploy to staging, smoke test (still TODO; needs provider OIDC set up)
+- [ ] Task 3: evidence of a blocked bad commit
+- [ ] Tasks 4-6: dashboard and SLO, scheduled drift detector, injected drift and post-mortem

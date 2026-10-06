@@ -14,11 +14,25 @@ permissions:
   contents: read
   id-token: write        # required for OIDC. See cd.yml — no long-lived keys anywhere.
 
+env:
+  BLOB_URI: file://${{ github.workspace }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+     
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz
+          sudo mv gitleaks /usr/local/bin/
+     
+      - name: Secret scan (full history)
+        run: make scan-secrets     
 
       - uses: actions/setup-python@v5
         with:
@@ -38,6 +52,9 @@ jobs:
 
       - name: Portability audit
         run: python scripts/portability_audit.py
+     
+      - name: Unit tests
+        run: pytest -q tests/test_features.py
 
       - name: Generate dataset
         run: python scripts/make_dataset.py
@@ -91,10 +108,12 @@ jobs:
           for i in $(seq 1 30); do
             curl -sf localhost:8080/ready && break || sleep 2
           done
-          curl -sf -X POST localhost:8080/predict \
+          RESP=$(curl -sf -X POST localhost:8080/predict \
             -H 'content-type: application/json' \
-            -d '{"temp_c":78.4,"vibration_mm_s":3.1,"pressure_kpa":315.2,"hours_since_service":4200,"load_pct":68,"ambient_humidity":55}' \
-            | tee /dev/stderr | grep -q probability
+            -d '{"temp_c":78.4,"vibration_mm_s":3.1,"pressure_kpa":315.2,"hours_since_service":4200,"load_pct":68,"ambient_humidity":55}')
+          echo "$RESP"
+          echo "$RESP" | jq -e --arg v "${{ github.sha }}" \
+            '(.probability | type == "number" and . >= 0 and . <= 1) and .model_version == $v'
           docker stop svc
 
       # Images are tagged with the commit SHA, never `latest`. A `latest` tag makes it

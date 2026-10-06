@@ -18,8 +18,8 @@ import json
 import os
 import time
 from pathlib import Path
-import shutil
-import joblib, tempfile
+import joblib
+import tempfile
 
 import mlflow
 from sklearn.ensemble import RandomForestClassifier
