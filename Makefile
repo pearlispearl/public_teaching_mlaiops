@@ -130,11 +130,15 @@ cfg = config.load(); adapter = get_adapter(cfg); \
 print(adapter.invoke('$(ENDPOINT_NAME)', {'temp_c': 75.0, 'vibration_mm_s': 12.5, 'pressure_kpa': 250.0, 'hours_since_service': 120.0, 'load_pct': 65.0, 'ambient_humidity': 45.0}))"
 
 # --- Lab 4 -------------------------------------------------------------------
+scan-secrets: ## Full-history secret scan — must run on a non-shallow checkout
+	python scripts/scan_secrets.py
+
 inject-drift: ## Shift a feature's distribution on purpose
 	python scripts/inject_drift.py --feature temp_c --mode shift --magnitude 6
 
 drift: ## Score drift against the reference window
 	python -m monitoring.drift --current data/current.csv
+
 
 # --- Lab 5 -------------------------------------------------------------------
 pipeline: ## Compile pipeline/pipeline.yaml for your provider
