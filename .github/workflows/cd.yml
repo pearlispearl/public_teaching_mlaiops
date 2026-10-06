@@ -1,8 +1,8 @@
-# ITCS355 Lab 4 — continuous deployment.
+# ITCS355 Lab 4 — continuous deployment (GCP: Artifact Registry + Cloud Run).
 #
-# Runs only on main, only after CI is green. Credentials come from OIDC federation, not
-# from stored keys — TODO(Lab 4): uncomment the block for YOUR provider and delete the
-# other two.
+# Runs only on main, only after CI is green. No stored keys: OIDC -> Workload Identity Federation.
+# NOTE: triggered by workflow_run, so github.sha is the tip of the default branch, NOT
+# necessarily the commit CI tested. Always use workflow_run.head_sha.
 
 name: CD
 
@@ -16,47 +16,79 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  SHA: ${{ github.event.workflow_run.head_sha }}
+  SERVICE: itcs355-staging
+  IMAGE: ${{ vars.CONTAINER_REGISTRY }}/itcs355-serve:${{ github.event.workflow_run.head_sha }}
+
 jobs:
   deploy-staging:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
     runs-on: ubuntu-latest
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
-      # --- AWS ---------------------------------------------------------------
-      # - uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-      #     aws-region: ${{ vars.REGION }}
-      # - run: aws ecr get-login-password --region ${{ vars.REGION }} | docker login --username AWS --password-stdin ${{ vars.CONTAINER_REGISTRY }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
 
-      # --- Azure -------------------------------------------------------------
-      # - uses: azure/login@v2
-      #   with:
-      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      # - run: az acr login --name ${{ vars.ACR_NAME }}
+      - uses: google-github-actions/setup-gcloud@v2
 
-      # --- GCP ---------------------------------------------------------------
-      # - uses: google-github-actions/auth@v2
-      #   with:
-      #     workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-      #     service_account: ${{ secrets.GCP_DEPLOY_SA }}
-      # - run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev --quiet
 
-      - name: Push image
+      # Tagged by commit SHA, never :latest. The model is NOT baked in (.dockerignore
+      # excludes reports/); the app downloads it from BLOB_URI at startup.
+      - name: Build and push image
         run: |
-          echo "TODO(Lab 4): push the SHA-tagged image through your adapter"
-          # python -c "from src import config; from cloudlayer.factory import get_adapter; \
-          #   print(get_adapter(config.load()).push_image('itcs355-serve:${{ github.sha }}'))"
+          docker build -f service/Dockerfile.serve -t "$IMAGE" .
+          docker push "$IMAGE"
 
-      - name: Deploy to staging
+      # cloud.env is not in the image, so config.load() only sees these env vars. Without
+      # CLOUD_PROVIDER it falls back to "local" and the GCS download cannot work.
+      # --cpu 4 matches the Dockerfile's 4 uvicorn workers (Lab 3: workers = vCPU, which
+      # more than doubled throughput on n1-standard-4). Cloud Run needs >= 2Gi at 4 vCPU.
+      # The Dockerfile CMD is left untouched so the same image behaves the same everywhere.
+      - name: Deploy to staging (Cloud Run)
         run: |
-          echo "TODO(Lab 4): adapter.deploy(model_ref, endpoint, instance)"
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "${{ vars.REGION }}" \
+            --port 8080 \
+            --cpu 4 --memory 2Gi \
+            --max-instances 2 \
+            --allow-unauthenticated \
+            --set-env-vars "CLOUD_PROVIDER=gcp,PROJECT_ID=${{ vars.PROJECT_ID }},REGION=${{ vars.REGION }},BLOB_URI=${{ vars.BLOB_URI }},MODEL_BLOB_KEY=${{ vars.MODEL_BLOB_KEY || 'models/serving/model.joblib' }},MODEL_VERSION=$SHA"
 
       - name: Smoke test
         run: |
-          echo "TODO(Lab 4): adapter.invoke() with three known payloads."
-          echo "A deploy that is not smoke-tested is a deploy you have not verified."
+          URL=$(gcloud run services describe "$SERVICE" --region "${{ vars.REGION }}" --format='value(status.url)')
+          echo "Smoke testing $URL"
+
+          # 1) Readiness. A failed model download does NOT fail the deploy (app.py catches
+          #    it and the process stays up), so this is the check that catches it.
+          curl -sf --retry 20 --retry-delay 5 --retry-all-errors "$URL/ready" \
+            | jq -e --arg v "$SHA" '.status == "ready" and .model_version == $v'
+
+          # Each of the 4 workers loads the model on its own and app.py swallows a failed
+          # load, so one good /ready proves little. Hit it repeatedly to land on every worker.
+          for i in $(seq 1 12); do
+            curl -sf "$URL/ready" | jq -e '.status == "ready"' > /dev/null
+          done
+
+          # 2) Three known payloads: valid shape, probability in [0,1], and the version
+          #    serving is the commit we just deployed.
+          check() {
+            RESP=$(curl -sf --retry 3 --retry-delay 5 -X POST "$URL/predict" \
+              -H 'content-type: application/json' -d "$1")
+            echo "$RESP"
+            echo "$RESP" | jq -e --arg v "$SHA" \
+              '(.probability | type == "number" and . >= 0 and . <= 1) and .model_version == $v'
+          }
+          check '{"temp_c":78.4,"vibration_mm_s":3.1,"pressure_kpa":315.2,"hours_since_service":4200,"load_pct":68,"ambient_humidity":55}'
+          check '{"temp_c":65.0,"vibration_mm_s":2.0,"pressure_kpa":300.0,"hours_since_service":1000,"load_pct":40,"ambient_humidity":50}'
+          check '{"temp_c":90.0,"vibration_mm_s":6.0,"pressure_kpa":340.0,"hours_since_service":9000,"load_pct":90,"ambient_humidity":70}'
