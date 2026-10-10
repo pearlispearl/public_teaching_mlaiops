@@ -257,12 +257,10 @@ The same text, in the course template format, is in `reports/lab4-postmortem.md`
 4. **Cost if unnoticed for a week:** An estimate with stated assumptions (`python scripts/estimate_drift_impact.py`). I trained the Lab 1 configuration on the training machines (200 trees, depth 8, seed 20260101) and scored the 1,200 validation rows before and after the same +6 shift. Mean predicted risk goes from 0.104 to 0.126 (+21%), the share of rows above a 0.5 cutoff (my assumption; the service returns only a probability) from 2.08% to 2.58%, and 6% of rows move by more than 0.1. Ranking quality barely changes (AUC 0.836 to 0.837), so a metric that only watches ranking would not notice. At an assumed 1,000 predictions a day that is about 35 extra maintenance flags in a week (0.5 percentage points of 7,000). This assumes the shift is a measurement error, not a real change in the machines, and the model's labels are unchanged. Left alone for a week the fault would also run about 1,440 times longer than the 7 minutes this detector needed.
 5. **Prevention:** one concrete change: make `monitoring/run_scheduled.py` run the schema, null-rate and range checks from `tests/test_data.py` on the same current window before it scores drift, and emit a `contract.failed` metric with its own alert. Then a broken upstream feed raises a different alert from a real shift, and nobody retrains on it by reflex. The scheduled detector and email alert stay (detected in about 7 minutes here).
 
-## Status
+Every Lab 4 resource was deleted. Listings for Cloud Scheduler, Cloud Run services
+and jobs, dashboards, alert policies, notification channels, log-based metrics, the
+`drift/` bucket prefix, and Vertex AI endpoints, custom jobs and models all return
+empty, and `make teardown`-style cleanup for `lab=1`, `lab=2` and `lab=3` returned `[]`.
+The Artifact Registry repo `itcs355` was kept on purpose (images are tagged by commit SHA).
 
-- [x] Task 1: test categories, data contract tests, model behaviour tests
-- [x] Task 2: CI pipeline and CD to staging (OIDC, SHA-tagged images, smoke test)
-- [x] Task 3: blocked bad commit (PR #2)
-- [x] Task 4: dashboard and SLO
-- [x] Task 5: scheduled drift detector, alert policy, threshold justification
-- [x] Task 6: injected drift, detection time, post-mortem (`reports/lab4-postmortem.md`)
-- [ ] Teardown of cloud resources (scheduler, Cloud Run job and service, dashboard, alert policy, notification channel, log metric, drift files)
+![Teardown verification: all listings empty](docs/images/lab4-teardown.png)
