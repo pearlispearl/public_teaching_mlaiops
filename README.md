@@ -161,6 +161,11 @@ p95 latency under 200 ms over 7 days, model freshness within 30 days. Every
 
 **PSI >= 0.10 per feature.**
 
+0.10 and 0.25 are the credit-scoring rules of thumb, a setting with stable features and very large
+volumes. This data (6,000 rows, 240 machines, readings from one machine correlated) is not that, so the
+number is not taken from there. It comes from the two measurements below and happens to coincide with the
+credit-scoring value.
+
 - *Lower bound (no false alarms).* With no real change, PSI from sampling noise on `sensors.csv`
   is at most 0.068 across 6,000 draws at a 500-row window (p99 = 0.049), and it falls as the window
   grows (about 0.005 at the full 6,000 rows, extrapolated).
@@ -176,6 +181,10 @@ p95 latency under 200 ms over 7 days, model freshness within 30 days. Every
 
   The textbook 0.25 would have missed a 50% increase in spread. 0.10 catches both real shifts with
   at least 2x margin.
+- *Which statistic caught which fault.* `scale` leaves the mean of `temp_c` unchanged (79.58) yet PSI reacts
+  (0.206) while KS only reaches 0.114, so a check on the mean would have missed it and KS is the weaker alarm for
+  a change in spread. `shift` moves the mean and both react (PSI 0.383, KS 0.246). `mix` reweights machines and
+  neither reacts (PSI 0.009, KS 0.034).
 - *Known blind spot.* A change in the mix of machines moved no single feature enough to separate
   from noise (PSI 0.009), so per-feature PSI cannot catch it. That needs a different signal, such
   as a drop in prediction quality.
@@ -213,8 +222,10 @@ PSI for `temp_c` was 0.383 both locally and in the alert email (0.38333).
 
 ### Post-mortem
 
+The same text, in the course template format, is in `reports/lab4-postmortem.md`.
+
 1. **What fired:** `drift.psi.temp_c` = 0.383 (threshold 0.10) at 12:13 UTC; KS 0.246; the other five features stayed at 0.
 2. **True cause:** I injected it: the mean of `temp_c` moved by +6 at 12:06:09 UTC. No real-world change.
-3. **Retrain, roll back, or no action:** no action on the model. For a real alert, first check whether the sensor or upstream pipeline is broken (calibration, unit change, bad batch). Retraining on corrupted data would damage a working model, so retrain only after the shift is confirmed real.
-4. **Cost if unnoticed for a week:** 7 days is 10,080 minutes, about 1,440 times the 7 minutes this detector needed. The whole time the model would score `temp_c` readings shifted by +6 (mean 79.58 to 85.58), a range it was not trained on, and neither the error-rate nor the latency panel would move. I did not measure how far the predicted risk moves for this shift, so I cannot count the wrong decisions. The base failure rate in the data is 11.7%, and higher temperature most likely raises predicted risk, so the likely cost is a week of false maintenance alerts; a shift the other way would instead miss real failures.
-5. **Prevention:** keep the scheduled detector and email alert (detected in about 7 minutes here); add a data-contract check on the incoming feed so "upstream broke" and "the world changed" are told apart before anyone retrains.
+3. **Retrain, roll back, or no action:** No action on the model for now. For a real alert I would first check the schema and null rate of the incoming data and whether the sensor or upstream pipeline broke (calibration, unit change, bad batch), because retraining on corrupted data destroys the last good model. I would retrain only if the checks pass, the shifted distribution persists for days, and it matches a real change in the fleet (for example new equipment). Evidence that would change my mind: a schema or null-rate change (then fix the producer and backfill instead), or a fall in prediction quality without any input change (then it is concept drift).
+4. **Cost if unnoticed for a week:** An estimate with stated assumptions (`python scripts/estimate_drift_impact.py`). I trained the Lab 1 configuration on the training machines (200 trees, depth 8, seed 20260101) and scored the 1,200 validation rows before and after the same +6 shift. Mean predicted risk goes from 0.104 to 0.126 (+21%), the share of rows above a 0.5 cutoff (my assumption; the service returns only a probability) from 2.08% to 2.58%, and 6% of rows move by more than 0.1. Ranking quality barely changes (AUC 0.836 to 0.837), so a metric that only watches ranking would not notice. At an assumed 1,000 predictions a day that is about 35 extra maintenance flags in a week (0.5 percentage points of 7,000). This assumes the shift is a measurement error, not a real change in the machines, and the model's labels are unchanged. Left alone for a week the fault would also run about 1,440 times longer than the 7 minutes this detector needed.
+5. **Prevention:** one concrete change: make `monitoring/run_scheduled.py` run the schema, null-rate and range checks from `tests/test_data.py` on the same current window before it scores drift, and emit a `contract.failed` metric with its own alert. Then a broken upstream feed raises a different alert from a real shift, and nobody retrains on it by reflex. The scheduled detector and email alert stay (detected in about 7 minutes here).
