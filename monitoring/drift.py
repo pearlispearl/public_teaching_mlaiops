@@ -22,9 +22,12 @@ import pandas as pd
 
 # Conventional PSI reading, and it IS only conventional — it comes from credit scoring,
 # where features are stable and volumes are large. Your problem may warrant something
-# tighter or looser. TODO(Lab 4): state your threshold and why, in your README.
+# tighter or looser; see PSI_ALERT below for ours.
 PSI_NO_CHANGE = 0.10
 PSI_MODERATE = 0.25
+# Alert threshold. Reason is in README.md (Task 5): set from the PSI that
+# ordinary sampling noise produces on this dataset, not a library default.
+PSI_ALERT = 0.1
 
 
 @dataclass
@@ -106,7 +109,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--reference", type=Path, default=Path("data/raw/sensors.csv"))
     ap.add_argument("--current", type=Path, required=True)
-    ap.add_argument("--threshold", type=float, default=PSI_MODERATE,
+    ap.add_argument("--threshold", type=float, default=PSI_ALERT,
                     help="alert above this PSI. Justify your value in the README.")
     ap.add_argument("--out", type=Path, default=Path("reports/drift.json"))
     ap.add_argument("--emit", action="store_true", help="send scores as cloud metrics")
@@ -124,8 +127,7 @@ def main() -> int:
         print(f"{r.feature:<22}{r.psi:>10.5f}{r.ks_statistic:>10.5f}  {r.verdict}")
 
     if args.emit:
-        # TODO(Lab 4): implement emit_metric in your adapter, then this reaches
-        # CloudWatch / Azure Monitor / Cloud Monitoring and your dashboard shows it.
+        # Writes custom.googleapis.com/itcs355/drift.psi.<feature> via the adapter.
         from cloudlayer.factory import get_adapter
         adapter = get_adapter(config.load(strict=False))
         for r in results:

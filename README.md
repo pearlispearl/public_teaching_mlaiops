@@ -62,8 +62,9 @@ secret scan (gitleaks, full history, fetch-depth: 0) → lint (ruff) → portabi
   carry across jobs, which is what broke the integration test the first time).
 - Secrets: nothing is stored in a committed file. `permissions: id-token: write` is set for
   OIDC federation.
-- Both jobs run on pull requests; CI does not push or deploy; that is cd.yml, which runs only on main after CI is green"
-### Task 2: CD to staging (`.github/workflows/cd.yml`)
+- Both jobs run on pull requests; CI does not push or deploy; that is cd.yml, which runs only on main after CI is green.
+
+### Task 2 (continued): CD to staging (`.github/workflows/cd.yml`)
 
 Triggered by `workflow_run` after CI completes, only when CI succeeded on a `push` to `main`.
 Uses `workflow_run.head_sha` (not `github.sha`) so the deployed image is exactly the commit CI tested.
@@ -77,7 +78,15 @@ Uses `workflow_run.head_sha` (not `github.sha`) so the deployed image is exactly
   and that `model_version` equals the deployed commit SHA.
 - **Evidence:** CD run https://github.com/pearlispearl/public_teaching_mlaiops/actions/runs/37506762812, triggered by CI run https://github.com/pearlispearl/public_teaching_mlaiops/actions/runs/37505957340 on commit `d0d9423`.
   Smoke test returned `model_version = d0d942332546e3c1016dc50a0a5e06efdcf1822d` on all three calls.
-  Screenshot: `docs/images/lab4-cd-smoke.png`
+  Screenshots of the smoke test and of the whole deploy job:
+
+  ![CD smoke test](docs/images/lab4-cd-smoke.png)
+  ![CD deploy job](docs/images/lab4-cd-deploy.png)
+- **One failure, and what it was:** CD #4 failed once at `docker push` with
+  `Unauthenticated request ... artifactregistry.repositories.uploadArtifacts`. The registry
+  repo and the Cloud Run service were both intact (checked with `gcloud`), the workflow had not
+  changed since the green run before it, and re-running the failed job passed with no change.
+  Most likely a transient failure exchanging the OIDC token (not confirmed).
 
 ### Task 3: Evidence of a blocked bad commit
 
@@ -109,11 +118,103 @@ FAILED tests/test_data.py::test_features_within_plausible_ranges - KeyError: 'vi
 3 failed, 7 passed
 ```
 
-Screenshot: `docs/images/lab4-blocked-run.png`
+![blocked run: PR #2, test failed, build skipped](docs/images/lab4-blocked-run.png)
+![failing step: Data contract tests](docs/images/lab4-blocked-steps.png)
+![error: missing columns](docs/images/lab4-blocked-error.png)
 
-### Status
+## Task 4: Dashboard and SLO
 
-- [x] Unit, data contract, model behaviour and integration tests; CI green on the PR
-- [ ] `cd.yml`: push image, deploy to staging, smoke test (still TODO; needs provider OIDC set up)
-- [x] Task 3: evidence of a blocked bad commit (PR #2, closed, not merged)
-- [ ] Tasks 4-6: dashboard and SLO, scheduled drift detector, injected drift and post-mortem
+Dashboard: `monitoring/dashboard_gcp.json` (Cloud Monitoring; create with
+`gcloud monitoring dashboards create --config-from-file=monitoring/dashboard_gcp.json`).
+The Grafana-format `monitoring/dashboard.json` is kept only as the course reference.
+
+| Signal | Panel | Source |
+|---|---|---|
+| Request rate | req/s | `run.googleapis.com/request_count` |
+| Errors | 4xx and 5xx as separate share-of-requests lines (4xx = caller, 5xx = ours) | `request_count` by `response_code_class` |
+| Latency | p50 / p95 / p99 | `run.googleapis.com/request_latencies` |
+| Feature distribution | PSI per feature, with the 0.1 alert line | custom metric `custom.googleapis.com/itcs355/drift.psi.<feature>` |
+| Model version | requests/s by `model_version` | log-based metric `model_version_requests` |
+
+![dashboard](docs/images/lab4-dashboard.png)
+
+SLO (`monitoring/slo.yaml`): availability 99.5% over 30 days (about 216 minutes of budget),
+p95 latency under 200 ms over 7 days, model freshness within 30 days. Every
+`on_budget_exhausted` entry names the response (freeze deploys, investigate before shipping).
+
+## Task 5: Scheduled drift detector
+
+- Metric: PSI per feature (10 quantile bins), with two-sample KS printed alongside.
+- Threshold: PSI >= 0.10 flags a feature in `drift.py`; the Cloud Monitoring condition is PSI > 0.10 (the
+  difference at exactly 0.10 does not matter). Justification and evidence in "Drift threshold" below.
+- Job: Cloud Run Job `itcs355-drift` runs `python -m monitoring.run_scheduled`, which fetches the
+  reference and current files through the cloud adapter and runs `monitoring.drift --emit`.
+  Same image and pinned dependencies as the training image (`Dockerfile`, hashes in `requirements.txt`).
+- Schedule: Cloud Scheduler `itcs355-drift-schedule`, every 10 minutes.
+- Alert channel: email (Cloud Monitoring notification channel), policy
+  `monitoring/alert_drift_policy.json`: one condition per feature, PSI > 0.10, combined with OR.
+- Limitation: the service does not log feature values, so "current" is a file in the bucket
+  (`drift/current.csv`) rather than live traffic. A production version would log a sample of
+  request features and build the current window from that. Windows below ~500 rows make 0.10 unreliable.
+
+### Drift threshold (Task 5)
+
+**PSI >= 0.10 per feature.**
+
+- *Lower bound (no false alarms).* With no real change, PSI from sampling noise on `sensors.csv`
+  is at most 0.068 across 6,000 draws at a 500-row window (p99 = 0.049), and it falls as the window
+  grows (about 0.005 at the full 6,000 rows, extrapolated).
+  Measured with `scripts/measure_drift_noise.py`. So 0.10 does not fire on noise at any window of
+  500 rows or more.
+- *Upper bound (catches real drift).* Injected with `scripts/inject_drift.py` on `temp_c`:
+
+  | Injection | PSI | KS | Caught at 0.10 | Caught at 0.25 |
+  |---|---|---|---|---|
+  | shift, +6 | 0.383 | 0.246 | yes | yes |
+  | scale, x1.5 | 0.206 | 0.114 | yes | **no** |
+  | mix (machine weights) | 0.009 | 0.034 | no | no |
+
+  The textbook 0.25 would have missed a 50% increase in spread. 0.10 catches both real shifts with
+  at least 2x margin.
+- *Known blind spot.* A change in the mix of machines moved no single feature enough to separate
+  from noise (PSI 0.009), so per-feature PSI cannot catch it. That needs a different signal, such
+  as a drop in prediction quality.
+- *Caveat.* Rows from one machine are correlated, so real windows are noisier than the experiment;
+  the margin is meant to absorb that. If the window falls below 500 rows, re-measure.
+
+![alert policy: PSI temp_c > 0.10](docs/images/lab4-policy-chart.png)
+
+## Task 6: Injected drift
+
+Injection: `python scripts/inject_drift.py --feature temp_c --mode shift --magnitude 6`
+(mean of `temp_c` 79.58 -> 85.58), uploaded to the `current.csv` the detector reads.
+
+| Event | Time (UTC) |
+|---|---|
+| Drift injected (T0) | 12:06:09 |
+| Scheduled job runs, logs ALERT | 12:10:00 start, 12:10:30 ALERT line |
+| Incident opened, email received | 12:13:06 |
+| Reference restored to `current.csv` | 15:37:15 |
+| Incident closed ("Alert recovered" email) | about 15:43 (duration 3 h 30 min from 12:13) |
+
+**Detection time: 6 min 57 s** (T0 to incident open): 4 min 21 s until the scheduled job flagged it,
+2 min 36 s until Cloud Monitoring opened the incident. This is one trial. The worst case is
+roughly the 10-minute schedule plus the policy evaluation delay. The incident stayed open for
+3 h 30 min only because I forgot to restore the file after collecting the evidence. That duration
+measures my delay, not the detector or a response process.
+
+PSI for `temp_c` was 0.383 both locally and in the alert email (0.38333).
+
+![alert email](docs/images/lab4-alert-email.png)
+![incident](docs/images/lab4-incident.png)
+![recovered](docs/images/lab4-alert-recovered.png)
+![incident closed](docs/images/lab4-closealert.png)
+![drift panel](docs/images/lab4-drift-panel.png)
+
+### Post-mortem
+
+1. **What fired:** `drift.psi.temp_c` = 0.383 (threshold 0.10) at 12:13 UTC; KS 0.246; the other five features stayed at 0.
+2. **True cause:** I injected it: the mean of `temp_c` moved by +6 at 12:06:09 UTC. No real-world change.
+3. **Retrain, roll back, or no action:** no action on the model. For a real alert, first check whether the sensor or upstream pipeline is broken (calibration, unit change, bad batch). Retraining on corrupted data would damage a working model, so retrain only after the shift is confirmed real.
+4. **Cost if unnoticed for a week:** 7 days is 10,080 minutes, about 1,440 times the 7 minutes this detector needed. The whole time the model would score `temp_c` readings shifted by +6 (mean 79.58 to 85.58), a range it was not trained on, and neither the error-rate nor the latency panel would move. I did not measure how far the predicted risk moves for this shift, so I cannot count the wrong decisions. The base failure rate in the data is 11.7%, and higher temperature most likely raises predicted risk, so the likely cost is a week of false maintenance alerts; a shift the other way would instead miss real failures.
+5. **Prevention:** keep the scheduled detector and email alert (detected in about 7 minutes here); add a data-contract check on the incoming feed so "upstream broke" and "the world changed" are told apart before anyone retrains.

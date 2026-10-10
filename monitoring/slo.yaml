@@ -6,27 +6,57 @@
 service: itcs355-predict
 
 objectives:
+  # Why 99.5% and not 99.9%: this is one Cloud Run service in one region, max 2 instances and
+  # no minimum instance, so every cold start downloads and loads the model from GCS before the
+  # instance takes traffic. 99.9% (43 minutes a month) is a promise this architecture cannot
+  # keep; 99.5% (216 minutes a month) is one it can. It is deliberately stricter than the k6
+  # gate from Lab 3 (error rate < 1%), so passing the load test does not by itself prove the SLO.
   - name: availability
-    target: 0.995              # TODO(Lab 4): your number, and defend it
+    target: 0.995
     window: 30d
     measurement: "successful responses / total responses, excluding 4xx"
     on_budget_exhausted: |
-      TODO(Lab 4): what actually happens. Freeze deploys? Page someone? Fall back to the
-      last known-good version? Accept it and revise the target? All are defensible;
-      silence is not.
+      The budget is 0.5% of requests in the trailing 30 days (about 216 minutes of total outage).
+      When it is spent:
+      1. Stop shipping features. CD deploys every green push to main, so freezing deploys means
+         freezing merges: only fixes for the cause go in until the budget recovers.
+      2. If a recent deploy is the cause, roll back to the last good image. Images are tagged by
+         commit SHA, so rollback is redeploying the previous SHA, not rebuilding anything.
+      3. Within two working days, write a post-mortem that says which kind of failure it was.
+      4. Do not lower the target to turn the number green. Revise it only if the post-mortem
+         shows 99.5% was never achievable for this architecture, and commit the change with
+         that reasoning.
+      With very little traffic the ratio is noisy: under about 200 requests in the window one
+      failed request is already 0.5%, so treat that window as "insufficient data", not exhausted.
 
+  # 200 ms matches the gate in loadtest/k6.js (p(95)<200), as the lab requires.
   - name: latency
-    target_p95_ms: 200         # TODO(Lab 4): must match the target you set in loadtest/k6.js
+    target_p95_ms: 200
     window: 7d
     measurement: "p95 of /predict, measured at the endpoint, not at the client"
     on_budget_exhausted: |
-      TODO(Lab 4)
+      Exhausted means p95 of /predict over the trailing 7 days is above 200 ms. Read the
+      dashboard first, because it has two different causes with different fixes:
+      - p99 far above p95 in a repeating pattern: cold starts (the model is downloaded on every
+        cold start). Set --min-instances 1 on the Cloud Run service and accept the idle cost, or
+        state that 200 ms is not achievable with scale-to-zero and revise the target.
+      - p95 itself high under steady load: a regression or an undersized instance. Roll back to
+        the previous SHA instead of tuning in place. Lab 3 found workers = vCPU more than doubled
+        throughput, so check the --cpu and worker-count pairing first.
+      No new model or feature ships until the 7-day p95 is back under 200 ms.
 
   - name: freshness
     target_max_model_age_days: 30
     window: continuous
     measurement: "days since the production model version was trained"
     on_budget_exhausted: |
-      TODO(Lab 4): this one interacts with your retraining trigger in Lab 5. Keep them
-      consistent — an SLO demanding a 30-day-old model and a 90-day retrain schedule is
-      a contradiction you should notice here rather than in production.
+      Exhausted means the production model is more than 30 days old.
+      1. Run the retraining pipeline now. So the Lab 5 schedule must run at least every 21 days:
+         a failed run then still leaves 9 days to fix it, whereas a 90-day schedule would break
+         this SLO from day 31. (Decision to revisit in Lab 5.)
+      2. If retraining fails or its promotion checks reject the new model, keep serving the old
+         one (an old model that works beats a new one that does not), open an incident, and
+         decide explicitly: fix the pipeline, or revise this target with reasons.
+      3. A drift alert may bring retraining forward, but never replaces this age limit and never
+         skips the check from the Lab 4 post-mortem: confirm the cause is real drift and not a
+         broken upstream pipeline before retraining on the data.

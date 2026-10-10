@@ -312,7 +312,32 @@ class GcpAdapter(CloudAdapter):
             raise RuntimeError(f"Prediction failed [{response.status_code}]: {response.text}")
 
         return response.json()    
-    # emit_metric                       -> Lab 4 (Cloud Monitoring time series)
+    # --- Lab 4 -----------------------------------------------------------------
+
+    def emit_metric(self, name: str, value: float, unit: str = "None") -> None:
+        """Write one point to Cloud Monitoring as custom.googleapis.com/itcs355/<name>.
+
+        `unit` is kept for interface compatibility: a custom metric's unit lives on its
+        descriptor, which Cloud Monitoring creates automatically on the first write.
+        Needs roles/monitoring.metricWriter for whichever identity is running.
+        """
+        # Imported here so the serving image and CI never need this SDK unless a
+        # caller actually emits a metric.
+        from google.cloud import monitoring_v3
+
+        now = time.time()
+        series = monitoring_v3.TimeSeries()
+        series.metric.type = f"custom.googleapis.com/itcs355/{name}"
+        series.resource.type = "global"
+        series.resource.labels["project_id"] = self.cfg.project_id
+        series.points = [monitoring_v3.Point({
+            "interval": {"end_time": {"seconds": int(now), "nanos": int((now % 1) * 1e9)}},
+            "value": {"double_value": float(value)},
+        })]
+        client = monitoring_v3.MetricServiceClient()
+        client.create_time_series(name=f"projects/{self.cfg.project_id}", time_series=[series])
+
+    # emit_metric -> Lab 4 (implemented above)
     # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
     # teardown                          -> Lab 5 (filter resources by label)
     def teardown(self, tags: dict[str, str]) -> list[str]:

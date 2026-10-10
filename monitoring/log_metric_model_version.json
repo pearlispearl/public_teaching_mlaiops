@@ -1,0 +1,16 @@
+{
+  "name": "model_version_requests",
+  "description": "Count of /predict requests by serving model_version, parsed from the service's JSON request log.",
+  "filter": "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"itcs355-staging\" AND jsonPayload.msg.path=\"/predict\"",
+  "metricDescriptor": {
+    "metricKind": "DELTA",
+    "valueType": "INT64",
+    "unit": "1",
+    "labels": [
+      {"key": "model_version", "valueType": "STRING", "description": "model_version from the request log line"}
+    ]
+  },
+  "labelExtractors": {
+    "model_version": "EXTRACT(jsonPayload.msg.model_version)"
+  }
+}

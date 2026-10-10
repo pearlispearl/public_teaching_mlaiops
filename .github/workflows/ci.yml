@@ -42,8 +42,8 @@ jobs:
       - name: Install
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
-          # TODO(Lab 4): once requirements.txt carries hashes, add --require-hashes.
+          pip install --require-hashes -r requirements.txt
+          # Hashes are pinned in requirements.txt: a substituted package fails the build.
 
       - name: Lint
         # ruff is pinned in requirements.txt and installed above. Installing it unpinned
@@ -87,7 +87,7 @@ jobs:
       - name: Install
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
 
       - name: Build training image
         run: docker buildx build --platform linux/amd64 -t itcs355:${{ github.sha }} --load .

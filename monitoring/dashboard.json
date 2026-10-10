@@ -1,5 +1,5 @@
 {
-  "_comment": "Lab 4 — dashboard as code. Portable Grafana definition; import it, or translate the panels to CloudWatch / Azure Monitor / Cloud Monitoring. Committing the dashboard is better than clicking one together, and is noted favourably.",
+  "_comment": "Reference Grafana layout. The working definition for this project is monitoring/dashboard_gcp.json (Cloud Monitoring), created with gcloud monitoring dashboards create.",
   "title": "ITCS355 — Prediction service",
   "refresh": "30s",
   "panels": [
@@ -17,7 +17,7 @@
      "_note": "If p99 is far above p95 in a repeating pattern, suspect cold start or a per-request model load."},
     {"id": 4, "title": "Feature drift (PSI, rolling)", "type": "timeseries",
      "target": "drift_psi",
-     "_note": "TODO(Lab 4): at least one feature-distribution statistic is required. Emit it from monitoring/drift.py via adapter.emit_metric."},
+     "_note": "Emitted by monitoring/drift.py --emit via GcpAdapter.emit_metric."},
     {"id": 5, "title": "Model version in production", "type": "stat",
      "target": "model_version_info",
      "_note": "During a canary you should see two. If you see two when you are not deploying, something is wrong."}

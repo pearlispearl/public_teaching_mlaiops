@@ -20,7 +20,10 @@ from sklearn.ensemble import RandomForestClassifier
 from src import config, data, seeds
 
 RAW = config.REPO_ROOT / "data" / "raw" / "sensors.csv"
-LATENCY_BUDGET_MS = 10.0  # TODO(Lab 4): set from YOUR p95 target in loadtest/k6.js
+# End-to-end p95 target: 200 ms (loadtest/k6.js, monitoring/slo.yaml).
+# In-process scoring gets at most a quarter of it (50 ms); HTTP, validation
+# and network need the rest.
+LATENCY_BUDGET_MS = 50.0
 
 
 @pytest.fixture(scope="module")
