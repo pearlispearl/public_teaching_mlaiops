@@ -1,0 +1,118 @@
+{
+  "displayName": "ITCS355 feature drift (PSI > 0.10)",
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "PSI temp_c > 0.10",
+      "conditionThreshold": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift.psi.temp_c\" resource.type=\"global\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "PSI vibration_mm_s > 0.10",
+      "conditionThreshold": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift.psi.vibration_mm_s\" resource.type=\"global\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "PSI pressure_kpa > 0.10",
+      "conditionThreshold": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift.psi.pressure_kpa\" resource.type=\"global\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "PSI hours_since_service > 0.10",
+      "conditionThreshold": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift.psi.hours_since_service\" resource.type=\"global\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "PSI load_pct > 0.10",
+      "conditionThreshold": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift.psi.load_pct\" resource.type=\"global\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    },
+    {
+      "displayName": "PSI ambient_humidity > 0.10",
+      "conditionThreshold": {
+        "filter": "metric.type=\"custom.googleapis.com/itcs355/drift.psi.ambient_humidity\" resource.type=\"global\"",
+        "aggregations": [
+          {
+            "alignmentPeriod": "300s",
+            "perSeriesAligner": "ALIGN_MAX"
+          }
+        ],
+        "comparison": "COMPARISON_GT",
+        "thresholdValue": 0.1,
+        "duration": "0s",
+        "trigger": {
+          "count": 1
+        }
+      }
+    }
+  ],
+  "documentation": {
+    "mimeType": "text/markdown",
+    "content": "PSI for a feature exceeded 0.10 (threshold justified in README: above noise floor at N>=500, below injected-drift PSI). Check the dashboard drift panel, then decide: retrain, roll back, or no action. Do not retrain until you know whether the upstream data is broken."
+  }
+}

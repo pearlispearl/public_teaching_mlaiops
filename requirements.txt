@@ -838,6 +838,7 @@ google-api-core==2.36.0 \
     #   google-cloud-aiplatform
     #   google-cloud-bigquery
     #   google-cloud-core
+    #   google-cloud-monitoring
     #   google-cloud-resource-manager
     #   google-cloud-storage
 google-auth==2.57.1 \
@@ -849,6 +850,7 @@ google-auth==2.57.1 \
     #   google-cloud-aiplatform
     #   google-cloud-bigquery
     #   google-cloud-core
+    #   google-cloud-monitoring
     #   google-cloud-resource-manager
     #   google-cloud-storage
     #   google-genai
@@ -866,6 +868,10 @@ google-cloud-core==2.7.0 \
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
+google-cloud-monitoring==2.32.0 \
+    --hash=sha256:507501ce1c39161c071754f7ed14cd527788b4ea44a1d052bd815c115a70ea48 \
+    --hash=sha256:b6c026a5780330aa26c6151279194daa241369b324c96fd6c52c703137bc6b5b
+    # via -r requirements.in
 google-cloud-resource-manager==1.18.0 \
     --hash=sha256:69bab144acd75878ebe44b720903dc3d140cb7d3be3261eaa8bc81e48afaff33 \
     --hash=sha256:db689f800a14c66d041196a7fbb8bb8aae8dc87f28c2929e101a5ec766b15512
@@ -1083,6 +1089,7 @@ grpcio==1.83.1 \
     --hash=sha256:f732feb060ef57c1a040c24cee072ba9fab99bd0a7d2c916ef3f1c4d84b98974
     # via
     #   google-api-core
+    #   google-cloud-monitoring
     #   google-cloud-resource-manager
     #   googleapis-common-protos
     #   grpc-google-iam-v1
@@ -2003,6 +2010,7 @@ proto-plus==1.28.4 \
     # via
     #   google-api-core
     #   google-cloud-aiplatform
+    #   google-cloud-monitoring
     #   google-cloud-resource-manager
 protobuf==6.33.6 \
     --hash=sha256:0cd27b587afca21b7cfa59a74dcbd48a50f0a6400cfb59391340ad729d91d326 \
@@ -2019,6 +2027,7 @@ protobuf==6.33.6 \
     #   databricks-sdk
     #   google-api-core
     #   google-cloud-aiplatform
+    #   google-cloud-monitoring
     #   google-cloud-resource-manager
     #   googleapis-common-protos
     #   grpc-google-iam-v1
