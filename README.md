@@ -30,6 +30,15 @@ Four categories, distinguished by *what makes them fail*:
 | `test_identifier_is_unique` | A duplicate-ingestion bug (e.g. a retried consumer) double-counts some readings, skewing the training distribution. |
 | `test_no_machine_leaks_across_splits` (leakage, from Lab 1) | A refactor switches to a row-wise split: validation looks great and never survives production. This is the most common silent failure in this kind of project. |
 
+**Evidence: the range test catches a unit change.** I simulated an upstream unit change by converting
+`temp_c` to Fahrenheit (mean 79.6 → 175.2, max 115.7 → 240.2). `test_features_within_plausible_ranges`
+failed with `temp_c above plausible ceiling: 240.215` (ceiling 140.0), so the bad data is stopped
+before training. I then restored the original file and confirmed `temp_c.max()` was back to 115.675
+with a clean `git status` for `data/raw/sensors.csv`.
+
+![Fahrenheit corruption makes the range test fail](docs/images/lab4-task1-fahrenheit.png)
+![Test summary and data restored](docs/images/lab4-task1-fahrenheit2.png)
+
 ### Unit tests — what each group protects against
 
 17 tests in `tests/test_features.py`. Property tests of the split that live in
@@ -45,6 +54,15 @@ leakage test.
 | `SCHEMA` / `FEATURES` / `PLAUSIBLE_RANGES` consistent | A feature added to training but never added to the contract, so it is never checked. |
 | `config.load(strict=True)` raises on missing slots; exported variables beat `cloud.env` | A misconfigured environment that fails late instead of at startup; CI being unable to override a local file. |
 | `seeds.set_all()` repeatable, different seeds differ | A seed that is set but not applied, which makes runs irreproducible while the logs claim otherwise. |
+
+### Model behaviour tests: how the latency budget was chosen
+
+I measured pure model inference (single-row `predict_proba`, 50 runs after one warm-up, `n_jobs=1`)
+at **2.5 ms** per request. `LATENCY_BUDGET_MS = 50` is about 20x that, to absorb slower CI runners,
+and stays within a quarter of the 200 ms p95 target in `monitoring/slo.yaml`, leaving the rest for
+network, serialization and cold start.
+
+![Pure inference measurement: 2.506 ms](docs/images/lab4-task1-pure-inference.png)
 
 ### Task 2: CI pipeline
 
@@ -62,6 +80,10 @@ secret scan (gitleaks, full history, fetch-depth: 0) → lint (ruff) → portabi
   carry across jobs, which is what broke the integration test the first time).
 - Secrets: nothing is stored in a committed file. `permissions: id-token: write` is set for
   OIDC federation.
+- Secret scan evidence: `scripts/scan_secrets.py` (gitleaks 8.30.1) scanned all 58 commits
+  (~1.12 MB) and reported `no leaks found`.
+
+  ![Secret scan over git history](docs/images/lab4-scan-secrets.png)
 - Both jobs run on pull requests; CI does not push or deploy; that is cd.yml, which runs only on main after CI is green.
 
 ### Task 2 (continued): CD to staging (`.github/workflows/cd.yml`)
@@ -82,6 +104,11 @@ Uses `workflow_run.head_sha` (not `github.sha`) so the deployed image is exactly
 
   ![CD smoke test](docs/images/lab4-cd-smoke.png)
   ![CD deploy job](docs/images/lab4-cd-deploy.png)
+- **Service state:** `itcs355-staging` is live in `asia-southeast1` and "Last deployed by" is the
+  `gh-deployer` service account, so the deploy came from the GitHub Actions pipeline rather than a
+  manual `gcloud run deploy`.
+
+  ![Cloud Run service list](docs/images/lab4-task2-cloud-run.png)
 - **One failure, and what it was:** CD #4 failed once at `docker push` with
   `Unauthenticated request ... artifactregistry.repositories.uploadArtifacts`. The registry
   repo and the Cloud Run service were both intact (checked with `gcloud`), the workflow had not
@@ -229,3 +256,13 @@ The same text, in the course template format, is in `reports/lab4-postmortem.md`
 3. **Retrain, roll back, or no action:** No action on the model for now. For a real alert I would first check the schema and null rate of the incoming data and whether the sensor or upstream pipeline broke (calibration, unit change, bad batch), because retraining on corrupted data destroys the last good model. I would retrain only if the checks pass, the shifted distribution persists for days, and it matches a real change in the fleet (for example new equipment). Evidence that would change my mind: a schema or null-rate change (then fix the producer and backfill instead), or a fall in prediction quality without any input change (then it is concept drift).
 4. **Cost if unnoticed for a week:** An estimate with stated assumptions (`python scripts/estimate_drift_impact.py`). I trained the Lab 1 configuration on the training machines (200 trees, depth 8, seed 20260101) and scored the 1,200 validation rows before and after the same +6 shift. Mean predicted risk goes from 0.104 to 0.126 (+21%), the share of rows above a 0.5 cutoff (my assumption; the service returns only a probability) from 2.08% to 2.58%, and 6% of rows move by more than 0.1. Ranking quality barely changes (AUC 0.836 to 0.837), so a metric that only watches ranking would not notice. At an assumed 1,000 predictions a day that is about 35 extra maintenance flags in a week (0.5 percentage points of 7,000). This assumes the shift is a measurement error, not a real change in the machines, and the model's labels are unchanged. Left alone for a week the fault would also run about 1,440 times longer than the 7 minutes this detector needed.
 5. **Prevention:** one concrete change: make `monitoring/run_scheduled.py` run the schema, null-rate and range checks from `tests/test_data.py` on the same current window before it scores drift, and emit a `contract.failed` metric with its own alert. Then a broken upstream feed raises a different alert from a real shift, and nobody retrains on it by reflex. The scheduled detector and email alert stay (detected in about 7 minutes here).
+
+## Status
+
+- [x] Task 1: test categories, data contract tests, model behaviour tests
+- [x] Task 2: CI pipeline and CD to staging (OIDC, SHA-tagged images, smoke test)
+- [x] Task 3: blocked bad commit (PR #2)
+- [x] Task 4: dashboard and SLO
+- [x] Task 5: scheduled drift detector, alert policy, threshold justification
+- [x] Task 6: injected drift, detection time, post-mortem (`reports/lab4-postmortem.md`)
+- [ ] Teardown of cloud resources (scheduler, Cloud Run job and service, dashboard, alert policy, notification channel, log metric, drift files)
