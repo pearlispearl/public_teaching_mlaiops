@@ -187,8 +187,10 @@ class GcpAdapter(CloudAdapter):
         def clean(v: str) -> str:
             return "".join(c if c.isalnum() or c == "-" else "-" for c in str(v).lower())[:63]
 
-        labels = {clean(k): clean(v) for k, v in (lineage or {}).items()}
-        labels.update(self.cfg.tags(2))
+        lineage = dict(lineage or {})
+        lab = int(lineage.pop("lab", 2))  # tag the resource with the lab that created it
+        labels = {clean(k): clean(v) for k, v in lineage.items()}
+        labels.update(self.cfg.tags(lab))
 
         model = aiplatform.Model.upload(
             display_name=name,
@@ -198,6 +200,27 @@ class GcpAdapter(CloudAdapter):
         )
 
         return str(model.version_id)
+    def production_metric(self, name: str, key: str) -> dict[str, Any] | None:
+        """Latest registered model with this display name: its recorded metric label.
+
+        register_model stores lineage as labels, and GCP label values cannot contain a
+        dot, so 0.8352 is stored as "0-8352" and is converted back here.
+        """
+        aiplatform.init(project=self.cfg.project_id, location=self.cfg.region)
+        models = aiplatform.Model.list(
+            filter=f'display_name="{name}"', order_by="create_time desc")
+        for model in models:
+            labels = dict(model.labels or {})
+            raw = labels.get(key)
+            if raw is None:
+                continue
+            return {
+                "metric": float(raw.replace("-", ".")),
+                "data_version": labels.get("data-version", ""),
+                "version": str(model.version_id),
+            }
+        return None
+
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # --- Lab 3 -----------------------------------------------------------------
 

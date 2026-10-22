@@ -59,6 +59,15 @@ class CloudAdapter(ABC):
         raise NotImplementedError("Lab 4")
 
     # --- Lab 5 ---------------------------------------------------------------
+    def production_metric(self, name: str, key: str) -> dict[str, Any] | None:
+        """The registered production model's recorded metric, or None if there is none.
+
+        Returns {"metric": float, "data_version": str, "version": str}. Read from the
+        model registry, never from a local file, so the evaluation gate compares against
+        what is actually registered.
+        """
+        raise NotImplementedError("Lab 5")
+
     def generate(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a managed LLM endpoint once. Returns at least:
 
