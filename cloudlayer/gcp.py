@@ -22,6 +22,7 @@ Lab 2 notes:
     metrics -- metrics live in mlflow, which the container writes to independently.
 """
 from __future__ import annotations
+import os
 import time
 import subprocess
 import logging
@@ -337,9 +338,49 @@ class GcpAdapter(CloudAdapter):
         client = monitoring_v3.MetricServiceClient()
         client.create_time_series(name=f"projects/{self.cfg.project_id}", time_series=[series])
 
-    # emit_metric -> Lab 4 (implemented above)
-    # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
-    # teardown                          -> Lab 5 (filter resources by label)
+    def generate(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+        """One call to a managed Gemini model on Vertex AI (Lab 5 Part B).
+
+        Token counts are read from the response's usage_metadata, never estimated.
+        Knobs (all optional): model, system, temperature, max_output_tokens,
+        json_output, thinking_budget. Environment: LLM_MODEL, LLM_LOCATION.
+        """
+        from google import genai
+        from google.genai import types
+
+        model = params.get("model") or os.environ.get("LLM_MODEL", "gemini-2.5-flash")
+        location = os.environ.get("LLM_LOCATION", "us-central1")
+        client = genai.Client(vertexai=True, project=self.cfg.project_id, location=location)
+
+        kwargs: dict[str, Any] = {
+            "temperature": params.get("temperature", 0.0),
+            "max_output_tokens": params.get("max_output_tokens", 200),
+        }
+        if params.get("system"):
+            kwargs["system_instruction"] = params["system"]
+        if params.get("json_output"):
+            kwargs["response_mime_type"] = "application/json"
+        if params.get("thinking_budget") is not None:
+            # Thinking tokens count against max_output_tokens and are billed as output.
+            # Budget 0 keeps a short capped answer from being eaten by hidden reasoning.
+            kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=params["thinking_budget"])
+
+        started = time.perf_counter()
+        resp = client.models.generate_content(
+            model=model, contents=prompt, config=types.GenerateContentConfig(**kwargs))
+        latency_ms = round((time.perf_counter() - started) * 1000)
+
+        usage = resp.usage_metadata
+        return {
+            "response": resp.text or "",
+            "input_tokens": int(usage.prompt_token_count or 0),
+            # candidates + thinking tokens: both are billed as output.
+            "output_tokens": int((usage.candidates_token_count or 0)
+                                 + (getattr(usage, "thoughts_token_count", 0) or 0)),
+            "latency_ms": latency_ms,
+        }
+
     def teardown(self, tags: dict[str, str]) -> list[str]:
         """Delete resources tagged with the given labels. Returns list of deleted resource names."""
         aiplatform.init(
