@@ -462,6 +462,19 @@ class GcpAdapter(CloudAdapter):
 
         deleted = []
 
+        # Delete pipeline schedules first, so nothing can start a new run while we clean up.
+        # A schedule is matched by its labels, or by the display name this lab gives it.
+        for sched in aiplatform.PipelineJobSchedule.list():
+            try:
+                labels = dict(sched.labels or {})
+                if all(labels.get(k) == v for k, v in tags.items()) or (
+                        sched.display_name or "").endswith("-weekly"):
+                    sched.delete()
+                    deleted.append(sched.resource_name)
+                    print(f"Deleted pipeline schedule: {sched.resource_name}")
+            except Exception as exc:  # report and keep going
+                log.warning("Could not delete schedule %s: %s", sched.resource_name, exc)
+
         # Delete pipeline runs with matching labels (a run still in progress cannot be
         # deleted; it is cancelled first and has to be re-checked later)
         for run in aiplatform.PipelineJob.list(

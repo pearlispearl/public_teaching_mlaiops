@@ -65,9 +65,10 @@ reproduce: data image ## THE ONE COMMAND. Grader runs this.
 verify: ## Check the produced metric against the README claim
 	python scripts/verify_metric.py
 
-teardown: ## Delete every resource tagged course=itcs355 for this lab
+LAB ?= 5
+teardown: ## Delete every resource tagged course=itcs355 for this lab (LAB=5 by default)
 	python -c "from src import config; from cloudlayer.factory import get_adapter; \
-	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(3)))"
+	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags($(LAB))))"
 
 clean: ## Remove local artifacts
 	rm -rf mlruns mlartifacts mlflow.db reports/metrics.json .pytest_cache
