@@ -61,6 +61,7 @@ jobs:
             --port 8080 \
             --cpu 4 --memory 2Gi \
             --max-instances 2 \
+            --service-account "itcs355-serve@${{ vars.PROJECT_ID }}.iam.gserviceaccount.com" \
             --allow-unauthenticated \
             --set-env-vars "CLOUD_PROVIDER=gcp,PROJECT_ID=${{ vars.PROJECT_ID }},REGION=${{ vars.REGION }},BLOB_URI=${{ vars.BLOB_URI }},MODEL_BLOB_KEY=${{ vars.MODEL_BLOB_KEY || 'models/serving/model.joblib' }},MODEL_VERSION=$SHA"
 

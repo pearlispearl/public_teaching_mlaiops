@@ -1,0 +1,26 @@
+createTime: '2026-10-22T15:21:49.856473Z'
+deployedModels:
+- createTime: '2026-10-22T16:16:05.661259Z'
+  dedicatedResources:
+    machineSpec:
+      machineType: n1-standard-4
+    maxReplicaCount: 1
+    minReplicaCount: 1
+  displayName: itcs355-6688015-staging-deployed
+  id: '2977717181552263168'
+  model: projects/116618257996/locations/asia-southeast1/models/8989250826929176576
+  modelVersionId: '1'
+  serviceAccount: itcs355-serve@itcs355-6688015.iam.gserviceaccount.com
+  status:
+    availableReplicaCount: 1
+    lastUpdateTime: '2026-10-22T16:38:30.691411Z'
+displayName: itcs355-6688015-staging
+etag: AMEw9yOQa94TaoPFQBU0dGRBiaWCiD4u_XIGLgWtfT0XDnVaoCgMdknxm01mJH9K59Yw
+labels:
+  course: itcs355
+  lab: '5'
+  student: itcs355-6688015
+name: projects/116618257996/locations/asia-southeast1/endpoints/7851966576692559872
+trafficSplit:
+  '2977717181552263168': 100
+updateTime: '2026-10-22T16:30:58.480921Z'
