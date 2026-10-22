@@ -378,6 +378,7 @@ class GcpAdapter(CloudAdapter):
             # candidates + thinking tokens: both are billed as output.
             "output_tokens": int((usage.candidates_token_count or 0)
                                  + (getattr(usage, "thoughts_token_count", 0) or 0)),
+            "cached_input_tokens": int(getattr(usage, "cached_content_token_count", 0) or 0),
             "latency_ms": latency_ms,
         }
 
