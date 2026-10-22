@@ -183,6 +183,9 @@ def main() -> int:
     ap.add_argument("--temperature", type=float, default=0.0, help="live mode")
     ap.add_argument("--max-output-tokens", type=int, default=200, help="live mode")
     ap.add_argument("--llm-model", help="provider model id (live mode); default LLM_MODEL")
+    ap.add_argument("--guard", action="store_true",
+                    help="live mode: decide required-field and plausible-range cases in "
+                         "code (src/work_order_guard.py) before calling the model")
     ap.add_argument("--record", type=Path,
                     help="live mode: save the raw responses here as a fixture")
     ap.add_argument("--baseline", type=Path,
@@ -193,7 +196,7 @@ def main() -> int:
     if args.live:
         system = args.system.read_text() if args.system else None
         responses = generate_live(golden, system, args.temperature,
-                                  args.max_output_tokens, args.llm_model)
+                                  args.max_output_tokens, args.llm_model, args.guard)
         if args.record:
             args.record.parent.mkdir(parents=True, exist_ok=True)
             args.record.write_text(
@@ -227,18 +230,27 @@ def main() -> int:
 
 def generate_live(golden: list[dict], system: str | None = None,
                   temperature: float = 0.0, max_output_tokens: int = 200,
-                  model: str | None = None) -> list[dict]:
+                  model: str | None = None, guard: bool = False) -> list[dict]:
     """Route each prompt through the adapter's `generate`.
 
     Token counts and latency come from the provider's own usage fields (see
     GcpAdapter.generate), never from counting words.
     """
     from src import config
+    from src import work_order_guard
     from cloudlayer.factory import get_adapter
 
     adapter = get_adapter(config.load())
     rows = []
     for case in golden:
+        if guard:
+            decided = work_order_guard.precheck(case["prompt"])
+            if decided is not None:
+                # Decided in code: no model call, so no tokens and no latency to bill.
+                rows.append({"id": case["id"], "response": json.dumps(decided),
+                             "input_tokens": 0, "output_tokens": 0, "latency_ms": 0,
+                             "guarded": True})
+                continue
         result = adapter.generate(case["prompt"], {
             "system": system,
             "temperature": temperature,
