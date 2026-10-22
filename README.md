@@ -1,266 +1,112 @@
-## LAB4
+# Lab 5: pipelines, permissions, portability and cost
 
-### Task 1: Test categories
+Lab 4 write-up (tests, CI/CD, dashboard, drift) is in [README_Lab4.md](README_Lab4.md).
+Project `itcs355-6688015`, region `asia-southeast1`. Evidence files are in `reports/`.
 
-Four categories, distinguished by *what makes them fail*:
+## Task 1: Pipeline with a real gate
 
-- **Unit tests** (`tests/test_features.py`, CI step "Unit tests") — test the code in
-  `src/data.py`, `src/config.py` and `src/seeds.py` against tiny in-memory inputs. They fail
-  when the CODE changes, not when the data changes. Fast, no network, no dataset on disk.
-- **Data contract tests** (`tests/test_data.py`, CI step "Data contract tests") — assertions
-  about the DATA itself, plus the Lab 1 leakage test. They fail when an upstream producer
-  changes something, even with our code untouched.
-- **Model behaviour tests** (`tests/test_model_behaviour.py`, CI step "Model behaviour
-  tests") — assertions about what the trained model DOES. They fail when its learned
-  behaviour changes, independent of any aggregate metric.
-- **Integration test** (`.github/workflows/ci.yml`, `build` job) — builds the serving image,
-  trains and exports a model, starts the container with `MODEL_VERSION` set to the commit
-  SHA, calls `/predict`, and asserts that `probability` is a number in [0, 1] and that
-  `model_version` equals the commit SHA. The second assertion is the proof that the image
-  being served is the commit under test.
+The training pipeline (`pipeline/pipeline.yaml`, compiled to Vertex AI Pipelines) runs end to end, and its evaluation
+gate (`scripts/evaluation_gate.py`) really decides whether a model is registered and deployed to staging.
 
-### Data contract tests — incident each one would have caught
+* Gate rules: AUC at least 0.80 absolute, and it must beat the registered model by a margin larger than noise
+  (0.005 when the data is the same, 0.033 when it is not).
+* Run that registered and deployed a model: all steps green (`reports/lab5-task1-pipeline-green.png`).
+* Run that the gate stopped: same data, so the new model is not better. The log says
+  `GATE FAIL improvement +0.0000 within noise (same data, required +0.0050); not registering`, and the later steps are
+  skipped (`reports/lab5-task1-gate-skip.png`, `reports/lab5-gate-pipeline-fail.txt`).
+* Endpoint check: `reports/lab5-endpoint-describe.yaml`; load test against the deployed endpoint:
+  `reports/lab5-k6-vertex-vus5.txt`, `reports/lab5-k6-vertex-vus10.txt`.
 
-| Test | Incident it catches |
-|---|---|
-| `test_schema_columns_present_and_typed` | An upstream sensor-ingestion change renames or drops `vibration_mm_s`, and the pipeline silently trains on fewer features (or crashes downstream instead of failing loudly here). |
-| `test_no_nulls_in_required_columns` | A sensor goes offline and its readings start arriving as nulls; a naive `fillna(0)` downstream would quietly corrupt every feature using that fallback. |
-| `test_features_within_plausible_ranges` | A unit-conversion bug (e.g. Fahrenheit shipped instead of Celsius for `temp_c`) ships readings 70-120 points off, inflating risk scores across the whole fleet without an obvious crash. |
-| `test_target_is_binary_and_not_degenerate` | An upstream label-generation change collapses `failed_within_7d` to all-zero (e.g. a broken join against the failure log), silently training a model that always predicts "safe". |
-| `test_identifier_is_unique` | A duplicate-ingestion bug (e.g. a retried consumer) double-counts some readings, skewing the training distribution. |
-| `test_no_machine_leaks_across_splits` (leakage, from Lab 1) | A refactor switches to a row-wise split: validation looks great and never survives production. This is the most common silent failure in this kind of project. |
+## Task 2: Least privilege
 
-**Evidence: the range test catches a unit change.** I simulated an upstream unit change by converting
-`temp_c` to Fahrenheit (mean 79.6 → 175.2, max 115.7 → 240.2). `test_features_within_plausible_ranges`
-failed with `temp_c above plausible ceiling: 240.215` (ceiling 140.0), so the bad data is stopped
-before training. I then restored the original file and confirmed `temp_c.max()` was back to 115.675
-with a clean `git status` for `data/raw/sensors.csv`.
+Identities, what each may do, the permission I removed on purpose and what broke, and the clean-up: see
+[reports/lab5-iam.md](reports/lab5-iam.md). Evidence: `reports/lab5-task2-iam-break.png`, `reports/lab5-iam-break.txt`.
+The AWS identities from Task 4 are in the same file.
 
-![Fahrenheit corruption makes the range test fail](docs/images/lab4-task1-fahrenheit.png)
-![Test summary and data restored](docs/images/lab4-task1-fahrenheit2.png)
+## Task 3: Scheduled retraining
 
-### Unit tests — what each group protects against
+The pipeline is scheduled in `pipeline/pipeline.yaml` as `schedule: "0 2 * * 0"` (Sunday 02:00, Asia/Bangkok). The
+reasoning follows; the same text is in [reports/lab5-retrain.md](reports/lab5-retrain.md).
 
-17 tests in `tests/test_features.py`. Property tests of the split that live in
-`tests/test_data.py` (`test_split_is_deterministic_given_seed`, `test_split_changes_with_seed`,
-`test_every_row_lands_in_exactly_one_split`) run in the data contract step alongside the
-leakage test.
+System: a failure-probability model for 240 machines, 6,000 rows, six sensor features. Held-out ROC AUC
+is about 0.85 (0.848 when only the model seed varies, 0.849 when split and seed both vary; range up to 0.052,
+`reports/lab5-gate-noise.txt`). A run of the whole pipeline took 6 minutes 11 seconds
+(`itcs355-training-pipeline-20261022234454`).
 
-| Group | What it protects against |
-|---|---|
-| `split()`: machine counts per partition, sorted by `reading_id`, independent of input row order | A change to the rounding or slicing in `split()` silently shifts partition sizes, or makes results depend on how the CSV happened to be ordered. |
-| `split()` raises `ValueError` on an empty partition | A tiny dataset yields an empty validation set that only shows up much later as a NaN metric, far from the cause. |
-| `load_raw()` missing file; `data_fingerprint()` changes with content, not filename | Training on the wrong file, or a fingerprint that fails to change when the data does, which breaks the metric-to-data traceability from Lab 1. |
-| `SCHEMA` / `FEATURES` / `PLAUSIBLE_RANGES` consistent | A feature added to training but never added to the contract, so it is never checked. |
-| `config.load(strict=True)` raises on missing slots; exported variables beat `cloud.env` | A misconfigured environment that fails late instead of at startup; CI being unable to override a local file. |
-| `seeds.set_all()` repeatable, different seeds differ | A seed that is set but not applied, which makes runs irreproducible while the logs claim otherwise. |
+### The three strategies, for this system
 
-### Model behaviour tests: how the latency budget was chosen
-
-I measured pure model inference (single-row `predict_proba`, 50 runs after one warm-up, `n_jobs=1`)
-at **2.5 ms** per request. `LATENCY_BUDGET_MS = 50` is about 20x that, to absorb slower CI runners,
-and stays within a quarter of the 200 ms p95 target in `monitoring/slo.yaml`, leaving the rest for
-network, serialization and cold start.
-
-![Pure inference measurement: 2.506 ms](docs/images/lab4-task1-pure-inference.png)
-
-### Task 2: CI pipeline
-
-Triggered on pull request and on push to `main`. Job `test`, then job `build` (needs `test`):
-
-```
-secret scan (gitleaks, full history, fetch-depth: 0) → lint (ruff) → portability audit
-  → unit tests → generate dataset → data contract tests → model behaviour tests
-  → service tests
-  → [build] build training + serving images, tagged by commit SHA, never `latest`
-  → integration test
-```
-
-- `BLOB_URI` is set at workflow level so every job receives it (job-level `env` does not
-  carry across jobs, which is what broke the integration test the first time).
-- Secrets: nothing is stored in a committed file. `permissions: id-token: write` is set for
-  OIDC federation.
-- Secret scan evidence: `scripts/scan_secrets.py` (gitleaks 8.30.1) scanned all 58 commits
-  (~1.12 MB) and reported `no leaks found`.
-
-  ![Secret scan over git history](docs/images/lab4-scan-secrets.png)
-- Both jobs run on pull requests; CI does not push or deploy; that is cd.yml, which runs only on main after CI is green.
-
-### Task 2 (continued): CD to staging (`.github/workflows/cd.yml`)
-
-Triggered by `workflow_run` after CI completes, only when CI succeeded on a `push` to `main`.
-Uses `workflow_run.head_sha` (not `github.sha`) so the deployed image is exactly the commit CI tested.
-
-- **Auth:** OIDC via Workload Identity Federation (`google-github-actions/auth`). No stored keys.
-  `gcloud run services list` shows the last deployer is `gh-deployer@itcs355-6688015.iam.gserviceaccount.com`.
-- **Image:** pushed to Artifact Registry tagged by commit SHA, never `latest`.
-- **Deploy:** Cloud Run service `itcs355-staging` (`--cpu 4 --memory 2Gi`, matching the 4 uvicorn workers from Lab 3).
-  The model is not baked into the image; the app downloads it from `BLOB_URI` at startup.
-- **Smoke test:** checks `/ready` (model loaded) and three `/predict` payloads; asserts probability is a number in [0, 1]
-  and that `model_version` equals the deployed commit SHA.
-- **Evidence:** CD run https://github.com/pearlispearl/public_teaching_mlaiops/actions/runs/37506762812, triggered by CI run https://github.com/pearlispearl/public_teaching_mlaiops/actions/runs/37505957340 on commit `d0d9423`.
-  Smoke test returned `model_version = d0d942332546e3c1016dc50a0a5e06efdcf1822d` on all three calls.
-  Screenshots of the smoke test and of the whole deploy job:
-
-  ![CD smoke test](docs/images/lab4-cd-smoke.png)
-  ![CD deploy job](docs/images/lab4-cd-deploy.png)
-- **Service state:** `itcs355-staging` is live in `asia-southeast1` and "Last deployed by" is the
-  `gh-deployer` service account, so the deploy came from the GitHub Actions pipeline rather than a
-  manual `gcloud run deploy`.
-
-  ![Cloud Run service list](docs/images/lab4-task2-cloud-run.png)
-- **One failure, and what it was:** CD #4 failed once at `docker push` with
-  `Unauthenticated request ... artifactregistry.repositories.uploadArtifacts`. The registry
-  repo and the Cloud Run service were both intact (checked with `gcloud`), the workflow had not
-  changed since the green run before it, and re-running the failed job passed with no change.
-  Most likely a transient failure exchanging the OIDC token (not confirmed).
-
-### Task 3: Evidence of a blocked bad commit
-
-PR #2 (`lab4-bad-contract`, closed without merging) changed one line in
-`scripts/make_dataset.py` so the generated CSV dropped the `vibration_mm_s` column:
-
-```python
-df.drop(columns=["vibration_mm_s"]).to_csv(args.out, index=False, lineterminator="\n")
-```
-
-- **Failing run:** https://github.com/pearlispearl/public_teaching_mlaiops/actions/runs/37488916012/job/112356150783#step:11:247
-- **Where it stopped:** step "Data contract tests". Every step before it (secret scan,
-  lint, portability audit, unit tests, generate dataset) passed. "Model behaviour tests"
-  and "Service tests" did not run, and the `build` job was skipped because of
-  `needs: test`, so nothing was built or shipped.
-- **Test that caught it:** `test_schema_columns_present_and_typed`
-  (`AssertionError: missing columns: ['vibration_mm_s']`). This is the test that
-  names the cause.
-- **Also failed (as a consequence):** `test_no_nulls_in_required_columns` and
-  `test_features_within_plausible_ranges` raised `KeyError` when they tried to read the
-  missing column.
-- **Unit tests were unaffected:** the 17 tests in `tests/test_features.py` still passed
-  locally, which shows the failure came from the data contract, not from the code.
-
-```
-FAILED tests/test_data.py::test_schema_columns_present_and_typed - AssertionError: missing columns: ['vibration_mm_s']
-FAILED tests/test_data.py::test_no_nulls_in_required_columns - KeyError: "['vibration_mm_s'] not in index"
-FAILED tests/test_data.py::test_features_within_plausible_ranges - KeyError: 'vibration_mm_s'
-3 failed, 7 passed
-```
-
-![blocked run: PR #2, test failed, build skipped](docs/images/lab4-blocked-run.png)
-![failing step: Data contract tests](docs/images/lab4-blocked-steps.png)
-![error: missing columns](docs/images/lab4-blocked-error.png)
-
-## Task 4: Dashboard and SLO
-
-Dashboard: `monitoring/dashboard_gcp.json` (Cloud Monitoring; create with
-`gcloud monitoring dashboards create --config-from-file=monitoring/dashboard_gcp.json`).
-The Grafana-format `monitoring/dashboard.json` is kept only as the course reference.
-
-| Signal | Panel | Source |
+| Strategy | When it is right here | How it fails here |
 |---|---|---|
-| Request rate | req/s | `run.googleapis.com/request_count` |
-| Errors | 4xx and 5xx as separate share-of-requests lines (4xx = caller, 5xx = ours) | `request_count` by `response_code_class` |
-| Latency | p50 / p95 / p99 | `run.googleapis.com/request_latencies` |
-| Feature distribution | PSI per feature, with the 0.1 alert line | custom metric `custom.googleapis.com/itcs355/drift.psi.<feature>` |
-| Model version | requests/s by `model_version` | log-based metric `model_version_requests` |
+| **Fixed schedule** | Change is slow and steady, a run is cheap, and a gate decides whether the result is used. All three hold: a run is about 2.5 THB (estimate: 1.5 training + 1 pipeline fee, `reports/lab5-estimate.md`), and a run on unchanged data is rejected by the gate. | It retrains when nothing changed. That is bounded but not free, and I proved it happens: run `…234454` trained on identical data and the gate said `improvement +0.0000 within noise (same data, required +0.0050)`. It is also too slow for a sudden change: a fault on Monday waits until Sunday. And it will train on corrupted data if the corruption is present when it fires. |
+| **Data volume threshold** | New machines are onboarded, or labelled failures arrive in bulk, so more data really means a better model. | There is no live feed in this lab: the training file comes from a deterministic generator, so a row counter would never reach its threshold. Even with a feed, a row count says nothing about quality (6,000 more rows from a broken sensor count the same as good rows), and failure labels arrive late, so there can be volume with nothing to learn from (an assumption about the domain, not something I measured). |
+| **Drift-triggered** | A real change in the fleet, fast, that hurts the model, with a cheap detector already running. The detector exists: PSI per feature every 10 minutes, and the injected shift was detected in 6 min 57 s (`reports/lab4-postmortem.md`). | The detector cannot tell a real change from a broken feed. Drift is not harm either: the +6 shift on `temp_c` gave PSI 0.383 but AUC moved only from 0.836 to 0.837, so retraining on that alert would have cost money and changed nothing. A change in machine mix gave PSI 0.009 and is invisible to it (Lab 4, Task 5). |
 
-![dashboard](docs/images/lab4-dashboard.png)
+### What I chose
 
-SLO (`monitoring/slo.yaml`): availability 99.5% over 30 days (about 216 minutes of budget),
-p95 latency under 200 ms over 7 days, model freshness within 30 days. Every
-`on_budget_exhausted` entry names the response (freeze deploys, investigate before shipping).
+**A fixed weekly schedule, `0 2 * * 0` (Sunday 02:00, Asia/Bangkok), protected by the validate step and the
+evaluation gate. Drift raises an alert to a person; it does not start a retrain.**
 
-## Task 5: Scheduled drift detector
+Why: the two jobs are different. The 10-minute drift detector covers fast change and tells a human within
+minutes. The weekly run covers slow change the detector cannot see. At roughly 2.5 THB a run that is about
+10 THB a month, and most weeks the gate will reject the result, which costs nothing further. The cadence of one
+week is a judgement, not a measurement: nothing in this lab produces new data to tune it against. 02:00
+is chosen so that the outcome is waiting for me at the start of the week, not so that it is the quietest hour,
+which I have no data on.
 
-- Metric: PSI per feature (10 quantile bins), with two-sample KS printed alongside.
-- Threshold: PSI >= 0.10 flags a feature in `drift.py`; the Cloud Monitoring condition is PSI > 0.10 (the
-  difference at exactly 0.10 does not matter). Justification and evidence in "Drift threshold" below.
-- Job: Cloud Run Job `itcs355-drift` runs `python -m monitoring.run_scheduled`, which fetches the
-  reference and current files through the cloud adapter and runs `monitoring.drift --emit`.
-  Same image and pinned dependencies as the training image (`Dockerfile`, hashes in `requirements.txt`).
-- Schedule: Cloud Scheduler `itcs355-drift-schedule`, every 10 minutes.
-- Alert channel: email (Cloud Monitoring notification channel), policy
-  `monitoring/alert_drift_policy.json`: one condition per feature, PSI > 0.10, combined with OR.
-- Limitation: the service does not log feature values, so "current" is a file in the bucket
-  (`drift/current.csv`) rather than live traffic. A production version would log a sample of
-  request features and build the current window from that. Windows below ~500 rows make 0.10 unreliable.
+### The worst case: drift-triggered retraining on corrupted upstream data
 
-### Drift threshold (Task 5)
+A sensor feed starts sending `temp_c` in the wrong unit, or with a calibration offset. The detector fires within
+minutes. If that alert started the pipeline automatically:
 
-**PSI >= 0.10 per feature.**
+1. **A gross fault is stopped.** Fahrenheit values fall outside `PLAUSIBLE_RANGES`, so the `validate` step
+   (`tests/test_data.py`) fails and the pipeline aborts before training.
+2. **A subtle fault is not.** A +6 offset stays inside every range, so `validate` passes and the pipeline trains
+   on corrupted data. The gate compares the new model with the registered one on a test split taken from the
+   *same corrupted data*. The data differs, so the unpaired margin (+0.033) applies, and an offset that leaves
+   AUC unchanged is rejected. But a corruption that makes the problem easier raises AUC, passes the gate, and is
+   registered and deployed to staging.
+3. **The damage compounds.** The gate's reference is the most recently registered model. After a bad
+   registration that reference is the corrupted model, with an AUC measured on corrupted data. If it is
+   inflated, every later good model has to beat it by +0.033, so the gate blocks the recovery.
+4. **It is faster than any schedule.** A schedule can do this at most once a week and at a time I chose. A
+   drift trigger acts within minutes and fires again on every check while the drift lasts. The old model is not
+   deleted, but it is no longer the one in use, and the way back is a manual rollback.
 
-0.10 and 0.25 are the credit-scoring rules of thumb, a setting with stable features and very large
-volumes. This data (6,000 rows, 240 machines, readings from one machine correlated) is not that, so the
-number is not taken from there. It comes from the two measurements below and happens to coincide with the
-credit-scoring value.
+That is why drift only alerts. What exists today: the `validate` contract step, an absolute AUC floor of
+0.80, the paired and unpaired margins, and deployment to staging only. What does not exist yet, and would close
+the gap in point 2: a frozen reference test set that every candidate is scored on regardless of what data it
+trained on, and the `contract.failed` alert proposed in the Lab 4 post-mortem so a broken feed raises a
+different alarm from a real shift.
 
-- *Lower bound (no false alarms).* With no real change, PSI from sampling noise on `sensors.csv`
-  is at most 0.068 across 6,000 draws at a 500-row window (p99 = 0.049), and it falls as the window
-  grows (about 0.005 at the full 6,000 rows, extrapolated).
-  Measured with `scripts/measure_drift_noise.py`. So 0.10 does not fire on noise at any window of
-  500 rows or more.
-- *Upper bound (catches real drift).* Injected with `scripts/inject_drift.py` on `temp_c`:
+### Fit with the freshness SLO (`monitoring/slo.yaml`)
 
-  | Injection | PSI | KS | Caught at 0.10 | Caught at 0.25 |
-  |---|---|---|---|---|
-  | shift, +6 | 0.383 | 0.246 | yes | yes |
-  | scale, x1.5 | 0.206 | 0.114 | yes | **no** |
-  | mix (machine weights) | 0.009 | 0.034 | no | no |
+The Lab 4 SLO caps model age at 30 days and says the Lab 5 schedule must run at least every 21 days, so that a failed
+run still leaves 9 days to fix it. A weekly schedule meets that: after a failed run there are 23 days left.
 
-  The textbook 0.25 would have missed a 50% increase in spread. 0.10 catches both real shifts with
-  at least 2x margin.
-- *Which statistic caught which fault.* `scale` leaves the mean of `temp_c` unchanged (79.58) yet PSI reacts
-  (0.206) while KS only reaches 0.114, so a check on the mean would have missed it and KS is the weaker alarm for
-  a change in spread. `shift` moves the mean and both react (PSI 0.383, KS 0.246). `mix` reweights machines and
-  neither reacts (PSI 0.009, KS 0.034).
-- *Known blind spot.* A change in the mix of machines moved no single feature enough to separate
-  from noise (PSI 0.009), so per-feature PSI cannot catch it. That needs a different signal, such
-  as a drop in prediction quality.
-- *Caveat.* Rows from one machine are correlated, so real windows are noisier than the experiment;
-  the margin is meant to absorb that. If the window falls below 500 rows, re-measure.
+It also leaves a tension that I have to state. The gate rejects a candidate that is no better than the registered
+model, so on unchanged data the production model keeps its original training date and the "days since the production
+model was trained" clock keeps running even though the pipeline succeeded every week. My decision, which closes the
+"revisit in Lab 5" note in the SLO file: the freshness check means "the production model was evaluated against
+current data within 30 days", measured from the last pipeline run whose gate evaluated it, whether the candidate was
+accepted or rejected as not better. Limit: in this lab the data never changes, so I could not test this reading
+against a real change in the data.
 
-![alert policy: PSI temp_c > 0.10](docs/images/lab4-policy-chart.png)
+## Task 4: Portability
 
-## Task 6: Injected drift
+Part A (audit), Part B (a second adapter, `cloudlayer/aws.py`, run against a real AWS account: upload, download and
+invoke all pass) and Part C (what was hard, where the abstraction leaked, cost of a full migration, was it worth it):
+[reports/lab5-portability.md](reports/lab5-portability.md). Evidence: `reports/lab5-portability-demo.txt`,
+`reports/lab5-aws-*.png`, `reports/lab5-aws-s3-listing.txt`.
 
-Injection: `python scripts/inject_drift.py --feature temp_c --mode shift --magnitude 6`
-(mean of `temp_c` 79.58 -> 85.58), uploaded to the `current.csv` the detector reads.
+## Task 5: Cost
 
-| Event | Time (UTC) |
-|---|---|
-| Drift injected (T0) | 12:06:09 |
-| Scheduled job runs, logs ALERT | 12:10:00 start, 12:10:30 ALERT line |
-| Incident opened, email received | 12:13:06 |
-| Reference restored to `current.csv` | 15:37:15 |
-| Incident closed ("Alert recovered" email) | about 15:43 (duration 3 h 30 min from 12:13) |
+TODO: estimate vs actual, optimisation and cost per 1,000 predictions go in `reports/lab5-cost.md`
+(the estimate is in `reports/lab5-estimate.md`).
 
-**Detection time: 6 min 57 s** (T0 to incident open): 4 min 21 s until the scheduled job flagged it,
-2 min 36 s until Cloud Monitoring opened the incident. This is one trial. The worst case is
-roughly the 10-minute schedule plus the policy evaluation delay. The incident stayed open for
-3 h 30 min only because I forgot to restore the file after collecting the evidence. That duration
-measures my delay, not the detector or a response process.
+## Task 6: Teardown
 
-PSI for `temp_c` was 0.383 both locally and in the alert email (0.38333).
+TODO: teardown output and the screenshot of the empty resource list.
 
-![alert email](docs/images/lab4-alert-email.png)
-![incident](docs/images/lab4-incident.png)
-![recovered](docs/images/lab4-alert-recovered.png)
-![incident closed](docs/images/lab4-closealert.png)
-![drift panel](docs/images/lab4-drift-panel.png)
+## Tasks 7 to 9: LLM step
 
-### Post-mortem
-
-The same text, in the course template format, is in `reports/lab4-postmortem.md`.
-
-1. **What fired:** `drift.psi.temp_c` = 0.383 (threshold 0.10) at 12:13 UTC; KS 0.246; the other five features stayed at 0.
-2. **True cause:** I injected it: the mean of `temp_c` moved by +6 at 12:06:09 UTC. No real-world change.
-3. **Retrain, roll back, or no action:** No action on the model for now. For a real alert I would first check the schema and null rate of the incoming data and whether the sensor or upstream pipeline broke (calibration, unit change, bad batch), because retraining on corrupted data destroys the last good model. I would retrain only if the checks pass, the shifted distribution persists for days, and it matches a real change in the fleet (for example new equipment). Evidence that would change my mind: a schema or null-rate change (then fix the producer and backfill instead), or a fall in prediction quality without any input change (then it is concept drift).
-4. **Cost if unnoticed for a week:** An estimate with stated assumptions (`python scripts/estimate_drift_impact.py`). I trained the Lab 1 configuration on the training machines (200 trees, depth 8, seed 20260101) and scored the 1,200 validation rows before and after the same +6 shift. Mean predicted risk goes from 0.104 to 0.126 (+21%), the share of rows above a 0.5 cutoff (my assumption; the service returns only a probability) from 2.08% to 2.58%, and 6% of rows move by more than 0.1. Ranking quality barely changes (AUC 0.836 to 0.837), so a metric that only watches ranking would not notice. At an assumed 1,000 predictions a day that is about 35 extra maintenance flags in a week (0.5 percentage points of 7,000). This assumes the shift is a measurement error, not a real change in the machines, and the model's labels are unchanged. Left alone for a week the fault would also run about 1,440 times longer than the 7 minutes this detector needed.
-5. **Prevention:** one concrete change: make `monitoring/run_scheduled.py` run the schema, null-rate and range checks from `tests/test_data.py` on the same current window before it scores drift, and emit a `contract.failed` metric with its own alert. Then a broken upstream feed raises a different alert from a real shift, and nobody retrains on it by reflex. The scheduled detector and email alert stay (detected in about 7 minutes here).
-
-Every Lab 4 resource was deleted. Listings for Cloud Scheduler, Cloud Run services
-and jobs, dashboards, alert policies, notification channels, log-based metrics, the
-`drift/` bucket prefix, and Vertex AI endpoints, custom jobs and models all return
-empty, and `make teardown`-style cleanup for `lab=1`, `lab=2` and `lab=3` returned `[]`.
-The Artifact Registry repo `itcs355` was kept on purpose (images are tagged by commit SHA).
-
-![Teardown verification: all listings empty](docs/images/lab4-teardown.png)
+Cost of the managed LLM call, caching and guard decisions: [reports/lab5-llm.md](reports/lab5-llm.md).

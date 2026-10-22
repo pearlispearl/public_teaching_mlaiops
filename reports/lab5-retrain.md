@@ -49,3 +49,17 @@ That is why drift only alerts. What exists today: the `validate` contract step, 
 the gap in point 2: a frozen reference test set that every candidate is scored on regardless of what data it
 trained on, and the `contract.failed` alert proposed in the Lab 4 post-mortem so a broken feed raises a
 different alarm from a real shift.
+
+## Fit with the freshness SLO (`monitoring/slo.yaml`)
+
+The Lab 4 SLO caps model age at 30 days and says the Lab 5 schedule must run at least every 21 days, so that a failed
+run still leaves 9 days to fix it. A weekly schedule meets that: after a failed run there are 23 days left.
+
+It also leaves a tension that I have to state. The gate rejects a candidate that is no better than the registered
+model, so on unchanged data the production model keeps its original training date and the "days since the production
+model was trained" clock keeps running even though the pipeline succeeded every week. My decision, which closes the
+"revisit in Lab 5" note in the SLO file: the freshness check means "the production model was evaluated against
+current data within 30 days", measured from the last pipeline run whose gate evaluated it, whether the candidate was
+accepted or rejected as not better. Limit: in this lab the data never changes, so I could not test this reading
+against a real change in the data.
+
