@@ -95,15 +95,32 @@ class Step:
             "metric-test": round(metrics["test_roc_auc"], 4),
             "lab": 5,
         }
+        # The serving image is the Lab 3 image, pinned by digest. It reads the model this
+        # run just wrote, so the model and the code that loads it come from the same pins.
+        serving_image = os.environ.get("SERVE_IMAGE")
+        serving_env = None
+        if serving_image:
+            serving_env = {
+                "CLOUD_PROVIDER": self.cfg.provider,
+                "PROJECT_ID": self.cfg.project_id,
+                "REGION": self.cfg.region,
+                "BLOB_URI": self.cfg.blob_uri,
+                "MODEL_BLOB_KEY": f"pipeline/{self.run_id}/model/model.joblib",
+                "MODEL_REGISTRY_NAME": self.cfg.model_registry_name,
+                "MODEL_VERSION": self.run_id,
+                "MLFLOW_TRACKING_URI": "sqlite:////tmp/mlflow.db",
+            }
         version = self.adapter.register_model(
-            model_uri=self.uri("model"), name=self.cfg.model_registry_name, lineage=lineage)
+            model_uri=self.uri("model"), name=self.cfg.model_registry_name, lineage=lineage,
+            serving_image=serving_image, serving_env=serving_env)
         print("registered version", version)
 
     def deploy_staging(self) -> None:
         endpoint = f"{self.cfg.model_registry_name}-staging"
         instance = os.environ.get("SERVE_INSTANCE", "n1-standard-4")
         print("endpoint", self.adapter.deploy_model(
-            self.cfg.model_registry_name, endpoint, instance))
+            self.cfg.model_registry_name, endpoint, instance,
+            service_account=os.environ.get("SERVE_SERVICE_ACCOUNT") or None))
 
 
 def main() -> int:

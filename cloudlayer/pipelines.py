@@ -128,7 +128,8 @@ def compile_gcp(spec: dict[str, Any], out_path: str | Path | None = None) -> Pat
             if name not in order and all(d in order for d in step.get("depends_on", [])):
                 order.append(name)
 
-    slots = {s: os.environ[s] for s in config.CAPABILITY_SLOTS if os.environ.get(s)}
+    passthrough = (*config.CAPABILITY_SLOTS, "SERVE_IMAGE", "SERVE_SERVICE_ACCOUNT", "SERVE_INSTANCE")
+    slots = {s: os.environ[s] for s in passthrough if os.environ.get(s)}
 
     @dsl.pipeline(name=spec["name"])
     def pipeline():

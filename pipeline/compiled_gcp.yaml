@@ -100,7 +100,7 @@ deploymentSpec:
           value: itcs355-6688015
         - name: IDENTITY_REF
           value: lab2train@itcs355-6688015.iam.gserviceaccount.com
-        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:dev
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
     exec-evaluate:
       container:
         args:
@@ -129,7 +129,7 @@ deploymentSpec:
           value: itcs355-6688015
         - name: IDENTITY_REF
           value: lab2train@itcs355-6688015.iam.gserviceaccount.com
-        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:dev
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
     exec-ingest:
       container:
         args:
@@ -156,7 +156,7 @@ deploymentSpec:
           value: itcs355-6688015
         - name: IDENTITY_REF
           value: lab2train@itcs355-6688015.iam.gserviceaccount.com
-        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:dev
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
     exec-register:
       container:
         args:
@@ -183,7 +183,7 @@ deploymentSpec:
           value: itcs355-6688015
         - name: IDENTITY_REF
           value: lab2train@itcs355-6688015.iam.gserviceaccount.com
-        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:dev
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
     exec-train:
       container:
         args:
@@ -210,7 +210,7 @@ deploymentSpec:
           value: itcs355-6688015
         - name: IDENTITY_REF
           value: lab2train@itcs355-6688015.iam.gserviceaccount.com
-        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:dev
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
         resources:
           cpuLimit: 4.0
           memoryLimit: 15.0
@@ -242,7 +242,7 @@ deploymentSpec:
           value: itcs355-6688015
         - name: IDENTITY_REF
           value: lab2train@itcs355-6688015.iam.gserviceaccount.com
-        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:dev
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
 pipelineInfo:
   name: itcs355-training-pipeline
 root:

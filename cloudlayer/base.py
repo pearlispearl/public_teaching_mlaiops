@@ -59,7 +59,8 @@ class CloudAdapter(ABC):
         raise NotImplementedError("Lab 4")
 
     # --- Lab 5 ---------------------------------------------------------------
-    def deploy_model(self, name: str, endpoint_name: str, instance: str) -> str:
+    def deploy_model(self, name: str, endpoint_name: str, instance: str,
+                     service_account: str | None = None) -> str:
         """Deploy the latest registered model with this name to a managed endpoint.
 
         Unlike Lab 3's `deploy`, this builds and pushes no image, so it can run inside a
