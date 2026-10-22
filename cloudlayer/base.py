@@ -59,6 +59,14 @@ class CloudAdapter(ABC):
         raise NotImplementedError("Lab 4")
 
     # --- Lab 5 ---------------------------------------------------------------
+    def deploy_model(self, name: str, endpoint_name: str, instance: str) -> str:
+        """Deploy the latest registered model with this name to a managed endpoint.
+
+        Unlike Lab 3's `deploy`, this builds and pushes no image, so it can run inside a
+        pipeline container. Returns the endpoint's resource name.
+        """
+        raise NotImplementedError("Lab 5")
+
     def production_metric(self, name: str, key: str) -> dict[str, Any] | None:
         """The registered production model's recorded metric, or None if there is none.
 

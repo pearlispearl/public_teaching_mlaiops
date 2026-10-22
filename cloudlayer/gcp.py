@@ -221,6 +221,26 @@ class GcpAdapter(CloudAdapter):
             }
         return None
 
+    def deploy_model(self, name: str, endpoint_name: str, instance_type: str = "n1-standard-4") -> str:
+        """Deploy the latest registered model called `name` to a Vertex endpoint (Lab 5)."""
+        aiplatform.init(project=self.cfg.project_id, location=self.cfg.region)
+        models = aiplatform.Model.list(
+            filter=f'display_name="{name}"', order_by="create_time desc")
+        if not models:
+            raise RuntimeError(f"No registered model named {name!r}; nothing to deploy")
+        endpoints = aiplatform.Endpoint.list(filter=f'display_name="{endpoint_name}"')
+        endpoint = endpoints[0] if endpoints else aiplatform.Endpoint.create(
+            display_name=endpoint_name, labels=self.cfg.tags(5))
+        models[0].deploy(
+            endpoint=endpoint,
+            deployed_model_display_name=f"{endpoint_name}-deployed",
+            machine_type=instance_type,
+            min_replica_count=1,
+            max_replica_count=1,
+            traffic_percentage=100,
+        )
+        return endpoint.resource_name
+
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # --- Lab 3 -----------------------------------------------------------------
 
@@ -413,6 +433,20 @@ class GcpAdapter(CloudAdapter):
         )
 
         deleted = []
+
+        # Delete pipeline runs with matching labels (a run still in progress cannot be
+        # deleted; it is cancelled first and has to be re-checked later)
+        for run in aiplatform.PipelineJob.list(
+                filter=" AND ".join(f'labels.{k}="{v}"' for k, v in tags.items())):
+            try:
+                if run.state.name in ("PIPELINE_STATE_RUNNING", "PIPELINE_STATE_PENDING"):
+                    run.cancel()
+                else:
+                    run.delete()
+                deleted.append(run.resource_name)
+                print(f"Deleted or cancelled pipeline run: {run.resource_name}")
+            except Exception as exc:  # report and keep going; teardown must not stop early
+                log.warning("Could not delete %s: %s", run.resource_name, exc)
 
         # Delete Custom Jobs with matching labels
         jobs = aiplatform.CustomJob.list(

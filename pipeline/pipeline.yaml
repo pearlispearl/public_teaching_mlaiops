@@ -3,50 +3,51 @@
 # This file describes WHAT runs. cloudlayer/pipelines.py compiles it into SageMaker
 # Pipelines, Azure ML Pipelines, or Vertex AI Pipelines. Keeping the DAG here rather than
 # in provider SDK calls is what makes the pipeline portable, and it is why every step is
-# a container rather than a function.
+# a container rather than a function. The logic of each step lives in the image, in
+# scripts/pipeline_step.py, and steps pass data through BLOB_URI, never through a shared disk.
 
 name: itcs355-training-pipeline
 schedule: "0 2 * * 0"          # TODO(Lab 5): justify this in your README, or change it
 
 steps:
   - name: ingest
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/make_dataset.py"]
+    image: "${CONTAINER_REGISTRY}/itcs355-lab1:${IMAGE_TAG}"
+    command: ["python", "scripts/pipeline_step.py", "ingest"]
     outputs: [raw_data]
 
   - name: validate
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["pytest", "-q", "tests/test_data.py"]
+    image: "${CONTAINER_REGISTRY}/itcs355-lab1:${IMAGE_TAG}"
+    command: ["python", "scripts/pipeline_step.py", "validate"]
     depends_on: [ingest]
     on_failure: abort
     # Aborting here is the point. A pipeline that trains on data failing its own contract
     # produces a model nobody should trust, and it will do so silently.
 
   - name: train
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "-m", "src.train", "--metrics-out", "/outputs/metrics.json"]
+    image: "${CONTAINER_REGISTRY}/itcs355-lab1:${IMAGE_TAG}"
+    command: ["python", "scripts/pipeline_step.py", "train"]
     depends_on: [validate]
     instance: "${TRAIN_INSTANCE}"
     spot: true
     outputs: [model, metrics]
 
   - name: evaluate
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/evaluation_gate.py", "--metrics", "/outputs/metrics.json"]
+    image: "${CONTAINER_REGISTRY}/itcs355-lab1:${IMAGE_TAG}"
+    command: ["python", "scripts/pipeline_step.py", "evaluate"]
     depends_on: [train]
     outputs: [gate_decision]
 
   - name: register
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/register.py"]
+    image: "${CONTAINER_REGISTRY}/itcs355-lab1:${IMAGE_TAG}"
+    command: ["python", "scripts/pipeline_step.py", "register"]
     depends_on: [evaluate]
     condition: "gate_decision == 'pass'"
-    # TODO(Lab 5): a pipeline that registers unconditionally has no gate. The condition
-    # must be real, and the grader will try to make it fail.
+    # The condition is real: scripts/evaluation_gate.py compares against the model in the
+    # registry and writes "fail" when the candidate does not beat it by a measured margin.
 
   - name: deploy_staging
-    image: "${CONTAINER_REGISTRY}/itcs355:${IMAGE_TAG}"
-    command: ["python", "scripts/deploy.py", "--target", "staging"]
+    image: "${CONTAINER_REGISTRY}/itcs355-lab1:${IMAGE_TAG}"
+    command: ["python", "scripts/pipeline_step.py", "deploy_staging"]
     depends_on: [register]
 
 tags:
