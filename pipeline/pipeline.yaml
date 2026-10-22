@@ -7,7 +7,7 @@
 # scripts/pipeline_step.py, and steps pass data through BLOB_URI, never through a shared disk.
 
 name: itcs355-training-pipeline
-schedule: "0 2 * * 0"          # TODO(Lab 5): justify this in your README, or change it
+schedule: "0 2 * * 0"          # justified in reports/lab5-retrain.md
 
 steps:
   - name: ingest
