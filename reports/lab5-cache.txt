@@ -2,5 +2,5 @@ calls                 26
 avg input tokens      451
 cached input tokens   0 of 11734
 measured hit rate     0.000
-break-even hit rate   0.217
+break-even hit rate   0.250
 verdict               BELOW break-even

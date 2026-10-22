@@ -1,0 +1,5 @@
+primary gcp  second aws  blob s3://itcs355-6688015-lab5/itcs355
+
+[PASS] upload    -> s3://itcs355-6688015-lab5/itcs355/portability/probe.txt
+[PASS] download  round trip identical: True
+[PASS] invoke    -> {'probability': 0.33585372824761256, 'model_version': 'unknown'}

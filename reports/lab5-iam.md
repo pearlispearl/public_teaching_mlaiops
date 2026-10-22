@@ -112,3 +112,21 @@ gcloud iam service-accounts get-iam-policy lab2train@itcs355-6688015.iam.gservic
   Nothing in this system runs as it any more, but it is still there.
 * `roles/run.admin` is broader than a deploy needs; `roles/run.developer` is the narrower candidate and was not tried.
 * `artifactregistry.reader` and `monitoring.metricWriter` on `lab2train` were not removed or tested.
+
+## AWS identities (Task 4, Part B)
+
+| Identity | Used by | Permissions | Why that much |
+|---|---|---|---|
+| `itcs355-lab5` (IAM user, access key on my laptop) | `cloudlayer/aws.py`, `push_image`, the demo | Customer-managed policy `itcs355-lab5-operator`: `s3:ListBucket` on one bucket, `s3:GetObject`/`PutObject` on its objects, `ecr:GetAuthorizationToken` (`*`, AWS does not allow narrowing it) and push/pull actions on one ECR repository | Only what upload, download and image push need. No delete, no Lambda, no IAM |
+| `itcs355-lab5-lambda` (execution role of the function) | the serving container at runtime | `itcs355-lab5-model-reader` (`s3:GetObject` on `itcs355/models/*` of one bucket) and `AWSLambdaBasicExecutionRole` (write logs) | The service only reads its model. It cannot write to the bucket |
+| console account (root-level, human) | creating the bucket, repository, policies, role, function; Function URL permissions; deleting everything at teardown | full | Kept out of any script, used by hand |
+
+Observed boundary: calling `lambda:UpdateFunctionCode` as `itcs355-lab5` was refused
+("no identity-based policy allows the lambda:UpdateFunctionCode action"), which is the intended result: the key on
+my laptop can move data and push an image but cannot deploy or change code. I did that step in the console account.
+
+Accepted exposure: during the demo the Function URL used auth type NONE (public), with a resource policy limited to
+invocation through the URL. I deleted the URL right after capturing the evidence.
+
+Clean-up at teardown: delete the function, the ECR repository, the bucket, the two policies, the role, and the user's
+access key and user. Check the account is empty in the console.
