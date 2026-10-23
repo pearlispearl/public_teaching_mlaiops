@@ -466,9 +466,7 @@ class GcpAdapter(CloudAdapter):
         # A schedule is matched by its labels, or by the display name this lab gives it.
         for sched in aiplatform.PipelineJobSchedule.list():
             try:
-                labels = dict(sched.labels or {})
-                if all(labels.get(k) == v for k, v in tags.items()) or (
-                        sched.display_name or "").endswith("-weekly"):
+                if (sched.display_name or "").endswith("-weekly"):
                     sched.delete()
                     deleted.append(sched.resource_name)
                     print(f"Deleted pipeline schedule: {sched.resource_name}")

@@ -100,12 +100,67 @@ invoke all pass) and Part C (what was hard, where the abstraction leaked, cost o
 
 ## Task 5: Cost
 
-TODO: estimate vs actual, optimisation and cost per 1,000 predictions go in `reports/lab5-cost.md`
-(the estimate is in `reports/lab5-estimate.md`).
+Full report with all six sections: [reports/lab5-cost.md](reports/lab5-cost.md). Billing exports are in
+`reports/lab5-billing-*.csv`.
 
-## Task 6: Teardown
+| | THB |
+|---|---|
+| Estimate, committed before Task 1 | 72.00 |
+| Actual, billing filtered by label `lab=5` (22 to 23 Oct) | 9.95 |
+| Actual, all-in (adds the two lines that carry no label: Gemini 0.24, Artifact Registry 0.36) | 10.54 |
 
-TODO: teardown output and the screenshot of the empty resource list.
+**The gap is -86% and outside the 20% limit; I explain it rather than adjust it.** One decision is 34 of the 61 THB:
+I budgeted the Vertex endpoint at its 4-hour cap (36 THB) and it was billed for about 0.2 hours (1.80 THB). The hourly
+rate was right (9.1 against 8.9 THB/h); the number of hours was the error. The rest is unused contingency (12), an
+LLM call count I over-assumed (about 5) and a Cloud Run line I did not spend (3). The tag filter also hid two lines,
+which is the lab's own "untagged resources" failure mode.
+
+Cost per 1,000 predictions on the Vertex endpoint (9.11 THB/h, 31.1 req/s measured): 1.628 at 5% utilisation,
+0.326 at 25%, 0.102 at 80%. For this system (240 machines, one reading each every 10 minutes, an assumption) real
+utilisation would be about 1.3%, about 6.33 THB per 1,000, which says a warm endpoint is the wrong shape here.
+
+**Optimisation applied:** a shorter LLM prompt plus a deterministic guard in front of the model. It cost 9.0832 THB per
+1,000 requests before and 4.557 after (-50%), with the golden-set gate passing 13/13. It did not change serving, and
+I did not measure a Cloud Run alternative, so the report does not claim one.
+
+## Task 6: Teardown, verified
+
+```
+make teardown
+python scripts/teardown_verify.py --lab 5
+```
+
+**GCP.** The Vertex endpoint was removed the same session it was created (after the load test). `make teardown` then
+deleted the pipeline runs, 14 custom jobs, the registered model and the weekly schedule. `teardown_verify.py --lab 5`
+returns `PASS  nothing found under these tags` (`reports/lab5-teardown-verify.txt`). I then checked the console by
+hand and screenshotted the empty lists: pipeline runs, schedules, endpoints and custom jobs
+(`reports/lab5-task6-vertex-*.png`).
+
+**AWS.** The Lambda function and its log group, the ECR repository (with the image), the S3 bucket (with the model
+and the probe file), the IAM user and its access key, two roles and two policies were deleted. The checks
+(`list-functions`, `describe-repositories`, `s3 ls`, `iam list-users`, `list-roles`, `list-policies`) all return empty
+(`reports/lab5-task6-aws.png`).
+
+**What the check found that the first teardown missed.** The teardown scripts failed quietly three times, which is
+what the lab warns about:
+
+1. `make teardown` was hard-wired to the Lab 3 tags (`tags(3)`), so it would never have found a Lab 5 resource.
+   It now takes `LAB`, default 5.
+2. My first version of the schedule deletion called `sched.labels`, which this SDK version does not support. The
+   first run printed `Could not delete schedule ... Unknown field for Schedule: labels` and carried on
+   (`reports/lab5-teardown-run1.txt`), so the schedule survived. It now matches the schedule by display name, and
+   the second run deleted it (`reports/lab5-teardown.txt`).
+3. On AWS, pasting several delete commands at once lost most of them, because the CLI opened its output in a pager;
+   and one policy would not delete because an earlier edit had left it with two versions. I found both by running the
+   list commands afterwards, not by trusting the delete commands.
+
+**Left in place on purpose.** The Cloud Storage bucket (data, model and pipeline outputs), the Artifact Registry
+repository (the project's images; about 0.36 THB per two days, the one recurring cost) and the Cloud Run service
+`itcs355-staging` (the target of the Lab 4 CD workflow). The Cloud Run service scales to zero and costs nothing idle.
+
+**24-hour check.** Deletion is asynchronous, so the lab asks for a second check a day later: run
+`python scripts/teardown_verify.py --lab 5` again after 24 hours, and compare the bill for 24 to 25 October with
+`reports/lab5-cost.md`.
 
 ## Tasks 7 to 9: LLM step
 

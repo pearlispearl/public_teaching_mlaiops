@@ -1,0 +1,2 @@
+python -c "from src import config; from cloudlayer.factory import get_adapter; \
+	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(5)))"
