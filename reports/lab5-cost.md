@@ -91,7 +91,9 @@ split "training" from the other steps with this export.
 ## 5. Cost per 1,000 predictions at three utilisation levels
 
 Serving cost basis: one `n1-standard-4` Vertex endpoint at **9.11 THB/hour** (derived from the billing above:
-(1.20 + 0.60) / (0.79 / 4)). Throughput **31.1 req/s** at 10 concurrent clients, measured on this endpoint
+(1.20 + 0.60) / (0.79 / 4)). The price table in `src/costs.py` lists `n1-standard-4` at 7.6 THB/h; billing
+implied 9.11 THB/h (+20%), so the billed rate is used for every figure above and the table was not relied on.
+Throughput **31.1 req/s** at 10 concurrent clients, measured on this endpoint
 (`reports/lab5-k6-vertex-vus10.txt`; 31.8 req/s at 5 clients). Computed with `cost_per_1k_predictions` in `src/costs.py`.
 
 | Utilisation | THB per 1,000 predictions |
