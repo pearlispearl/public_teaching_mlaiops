@@ -1,0 +1,8 @@
+candidate test_roc_auc = 0.8483
+incumbent 0.9900  delta -0.1417
+GATE FAIL  improvement -0.1417 within noise (different data, required +0.0330); not registering
+exit code: 1
+candidate test_roc_auc = 0.8483
+incumbent 0.5000  delta +0.3483
+GATE PASS  improvement +0.3483 meets the different data margin +0.0330
+exit code: 0
