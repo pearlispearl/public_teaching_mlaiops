@@ -19,9 +19,14 @@ Three levers move an LLM bill, in the order they are worth pulling:
 
 Prices are THB per 1,000,000 tokens. They change often and differ by region.
 
-TODO(Lab 5): verify every rate below against your provider's pricing page for YOUR region
-before you cite a cost figure. Record the date you checked in your cost report. A stale
-price presented as current is exactly what the report is designed to catch.
+Verified on 2026-10-23 for the one model this repo calls, `gemini-2.5-flash` on Vertex AI
+(tier `gcp/small`), from https://cloud.google.com/vertex-ai/generative-ai/pricing, standard
+(non-batch) text prices: USD 0.30 per 1M input tokens, USD 2.50 per 1M output tokens
+(the output price includes thinking tokens; this repo sets thinking_budget=0), cached input
+USD 0.075. Converted at 33.6067 THB per USD, the 22 October 2026 close
+(https://www.poundsterlinglive.com/history/USD-THB-2026): 10.08 and 84.02 THB per 1M tokens.
+The earlier values (8.5 and 34.0) did not match this model. The other rows of the table
+are course placeholders and were NOT verified; do not cite them.
 """
 from __future__ import annotations
 
@@ -41,19 +46,21 @@ TOKEN_PRICE_TABLE: dict[str, dict[str, tuple[float, float]]] = {
         "large": (550.0, 2750.0),
     },
     "gcp": {
-        "small": (8.5, 34.0),
+        "small": (10.08, 84.02),  # gemini-2.5-flash, verified 2026-10-23, see module docstring
         "medium": (105.0, 525.0),
         "large": (525.0, 2625.0),
     },
 }
 
-# A cache hit is billed at this fraction of the normal input rate. Roughly right on all
-# three providers; verify it, like everything else here.
-CACHE_READ_FACTOR = 0.10
+# A cache hit is billed at this fraction of the normal input rate. 0.25 is verified for
+# gemini-2.5-flash on Vertex AI (USD 0.075 against 0.30, 2026-10-23); the other providers
+# were not checked.
+CACHE_READ_FACTOR = 0.25
 
 # Cache writes usually cost MORE than a normal input token. A prompt cache on a prefix
 # that changes every request is a way to pay extra for nothing, and it is a common and
-# expensive mistake.
+# expensive mistake. 1.25 is the course default and was NOT verified for Vertex AI, so the
+# break-even rate below is only as good as this number. Report it as an assumption.
 CACHE_WRITE_FACTOR = 1.25
 
 

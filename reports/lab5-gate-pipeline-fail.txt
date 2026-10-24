@@ -1,0 +1,3 @@
++ /usr/local/bin/python scripts/evaluation_gate.py --metrics /tmp/pipeline/metrics.json --decision-out /gcs/itcs355-6688015/itcs355/pipeline-root/116618257996/itcs355-training-pipeline-20261022234454/evaluate_9188603555039150080/gate_decision
+GATE FAIL  improvement +0.0000 within noise (same data, required +0.0050); not registering
+gate decision: fail

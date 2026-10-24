@@ -1,0 +1,4 @@
+searching for resources tagged {'course': 'itcs355', 'student': 'itcs355-6688015', 'lab': '5'}
+
+PASS  nothing found under these tags
+Still check the console. An untagged resource is invisible to this script and will keep billing.

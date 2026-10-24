@@ -1,0 +1,93 @@
+python -c "from src import config; from cloudlayer.factory import get_adapter; \
+	cfg=config.load(); print(get_adapter(cfg).teardown(cfg.tags(5)))"
+Deleting PipelineJobSchedule : projects/116618257996/locations/asia-southeast1/schedules/8599909361487183872
+PipelineJobSchedule deleted. . Resource name: projects/116618257996/locations/asia-southeast1/schedules/8599909361487183872
+Deleting PipelineJobSchedule resource: projects/116618257996/locations/asia-southeast1/schedules/8599909361487183872
+Delete PipelineJobSchedule backing LRO: projects/116618257996/locations/asia-southeast1/operations/4914091435923341312
+PipelineJobSchedule resource projects/116618257996/locations/asia-southeast1/schedules/8599909361487183872 deleted.
+Deleted pipeline schedule: projects/116618257996/locations/asia-southeast1/schedules/8599909361487183872
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/6778830858477371392
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/6778830858477371392
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/6778830858477371392
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/6020288094396219392
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/6778830858477371392 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/6778830858477371392
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/1248410516066402304
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/1248410516066402304
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/1248410516066402304
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/2367305846645325824
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/1248410516066402304 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/1248410516066402304
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/7080572033511194624
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/7080572033511194624
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/7080572033511194624
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/5883491255714840576
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/7080572033511194624 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/7080572033511194624
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/781725004680134656
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/781725004680134656
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/781725004680134656
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/3036653341263265792
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/781725004680134656 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/781725004680134656
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/946669341032579072
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/946669341032579072
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/946669341032579072
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/1961981880181981184
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/946669341032579072 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/946669341032579072
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/2444679167086690304
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/2444679167086690304
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/2444679167086690304
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/4334252983899389952
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/2444679167086690304 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/2444679167086690304
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/4912651762885722112
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/4912651762885722112
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/4912651762885722112
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/5197818212447682560
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/4912651762885722112 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/4912651762885722112
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/6490600482325659648
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/6490600482325659648
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/6490600482325659648
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/773594528509591552
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/6490600482325659648 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/6490600482325659648
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/5324731128790122496
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/5324731128790122496
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/5324731128790122496
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/2491717786351435776
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/5324731128790122496 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/5324731128790122496
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/4900829813863874560
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/4900829813863874560
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/4900829813863874560
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/7961339533792903168
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/4900829813863874560 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/4900829813863874560
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/6970796792594038784
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/6970796792594038784
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/6970796792594038784
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/2045861423241756672
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/6970796792594038784 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/6970796792594038784
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/2359110774166650880
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/2359110774166650880
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/2359110774166650880
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/3635632091703541760
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/2359110774166650880 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/2359110774166650880
+Deleting CustomJob : projects/116618257996/locations/asia-southeast1/customJobs/6207436655754739712
+CustomJob deleted. . Resource name: projects/116618257996/locations/asia-southeast1/customJobs/6207436655754739712
+Deleting CustomJob resource: projects/116618257996/locations/asia-southeast1/customJobs/6207436655754739712
+Delete CustomJob backing LRO: projects/116618257996/locations/asia-southeast1/operations/1182859144646885376
+CustomJob resource projects/116618257996/locations/asia-southeast1/customJobs/6207436655754739712 deleted.
+Deleted job: projects/116618257996/locations/asia-southeast1/customJobs/6207436655754739712
+Deleting Model : projects/116618257996/locations/asia-southeast1/models/8989250826929176576
+Model deleted. . Resource name: projects/116618257996/locations/asia-southeast1/models/8989250826929176576
+Deleting Model resource: projects/116618257996/locations/asia-southeast1/models/8989250826929176576
+Delete Model backing LRO: projects/116618257996/locations/asia-southeast1/models/8989250826929176576/operations/6978991865072713728
+Model resource projects/116618257996/locations/asia-southeast1/models/8989250826929176576 deleted.
+Deleted model: projects/116618257996/locations/asia-southeast1/models/8989250826929176576
+['projects/116618257996/locations/asia-southeast1/schedules/8599909361487183872', 'projects/116618257996/locations/asia-southeast1/customJobs/6778830858477371392', 'projects/116618257996/locations/asia-southeast1/customJobs/1248410516066402304', 'projects/116618257996/locations/asia-southeast1/customJobs/7080572033511194624', 'projects/116618257996/locations/asia-southeast1/customJobs/781725004680134656', 'projects/116618257996/locations/asia-southeast1/customJobs/946669341032579072', 'projects/116618257996/locations/asia-southeast1/customJobs/2444679167086690304', 'projects/116618257996/locations/asia-southeast1/customJobs/4912651762885722112', 'projects/116618257996/locations/asia-southeast1/customJobs/6490600482325659648', 'projects/116618257996/locations/asia-southeast1/customJobs/5324731128790122496', 'projects/116618257996/locations/asia-southeast1/customJobs/4900829813863874560', 'projects/116618257996/locations/asia-southeast1/customJobs/6970796792594038784', 'projects/116618257996/locations/asia-southeast1/customJobs/2359110774166650880', 'projects/116618257996/locations/asia-southeast1/customJobs/6207436655754739712', 'projects/116618257996/locations/asia-southeast1/models/8989250826929176576']

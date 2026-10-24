@@ -22,6 +22,7 @@ Lab 2 notes:
     metrics -- metrics live in mlflow, which the container writes to independently.
 """
 from __future__ import annotations
+import os
 import time
 import subprocess
 import logging
@@ -173,9 +174,21 @@ class GcpAdapter(CloudAdapter):
         return result
 
     # register_model -> Lab 2 (Vertex Model Registry)
-    def register_model(self, model_uri: str, name: str, lineage: dict[str, Any] | None = None) -> str:
+    def register_model(
+        self,
+        model_uri: str,
+        name: str,
+        lineage: dict[str, Any] | None = None,
+        serving_image: str | None = None,
+        serving_env: dict[str, str] | None = None,
+    ) -> str:
         """Upload model artifact to Vertex AI Model Registry with lineage tags.
-        
+
+        Without `serving_image` the model is served by Google's prebuilt scikit-learn
+        container, which only loads files written by that exact scikit-learn version. With
+        `serving_image` (our own serving image, digest-pinned) the model is served by the
+        same container as Lab 3, with the routes it already exposes.
+
         Returns the version string (e.g. '1').
         """
         aiplatform.init(
@@ -186,17 +199,76 @@ class GcpAdapter(CloudAdapter):
         def clean(v: str) -> str:
             return "".join(c if c.isalnum() or c == "-" else "-" for c in str(v).lower())[:63]
 
-        labels = {clean(k): clean(v) for k, v in (lineage or {}).items()}
-        labels.update(self.cfg.tags(2))
+        lineage = dict(lineage or {})
+        lab = int(lineage.pop("lab", 2))  # tag the resource with the lab that created it
+        labels = {clean(k): clean(v) for k, v in lineage.items()}
+        labels.update(self.cfg.tags(lab))
 
-        model = aiplatform.Model.upload(
-            display_name=name,
-            artifact_uri=model_uri,
-            serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-3:latest",
-            labels=labels,
-        )
+        if serving_image:
+            model = aiplatform.Model.upload(
+                display_name=name,
+                artifact_uri=model_uri,
+                serving_container_image_uri=serving_image,
+                serving_container_predict_route="/predict",
+                serving_container_health_route="/ready",
+                serving_container_ports=[8080],
+                serving_container_environment_variables=dict(serving_env or {}),
+                labels=labels,
+            )
+        else:
+            model = aiplatform.Model.upload(
+                display_name=name,
+                artifact_uri=model_uri,
+                serving_container_image_uri="us-docker.pkg.dev/vertex-ai/prediction/sklearn-cpu.1-3:latest",
+                labels=labels,
+            )
 
         return str(model.version_id)
+
+
+    def production_metric(self, name: str, key: str) -> dict[str, Any] | None:
+        """Latest registered model with this display name: its recorded metric label.
+
+        register_model stores lineage as labels, and GCP label values cannot contain a
+        dot, so 0.8352 is stored as "0-8352" and is converted back here.
+        """
+        aiplatform.init(project=self.cfg.project_id, location=self.cfg.region)
+        models = aiplatform.Model.list(
+            filter=f'display_name="{name}"', order_by="create_time desc")
+        for model in models:
+            labels = dict(model.labels or {})
+            raw = labels.get(key)
+            if raw is None:
+                continue
+            return {
+                "metric": float(raw.replace("-", ".")),
+                "data_version": labels.get("data-version", ""),
+                "version": str(model.version_id),
+            }
+        return None
+
+    def deploy_model(self, name: str, endpoint_name: str, instance_type: str = "n1-standard-4",
+                     service_account: str | None = None) -> str:
+        """Deploy the latest registered model called `name` to a Vertex endpoint (Lab 5)."""
+        aiplatform.init(project=self.cfg.project_id, location=self.cfg.region)
+        models = aiplatform.Model.list(
+            filter=f'display_name="{name}"', order_by="create_time desc")
+        if not models:
+            raise RuntimeError(f"No registered model named {name!r}; nothing to deploy")
+        endpoints = aiplatform.Endpoint.list(filter=f'display_name="{endpoint_name}"')
+        endpoint = endpoints[0] if endpoints else aiplatform.Endpoint.create(
+            display_name=endpoint_name, labels=self.cfg.tags(5))
+        models[0].deploy(
+            endpoint=endpoint,
+            deployed_model_display_name=f"{endpoint_name}-deployed",
+            machine_type=instance_type,
+            min_replica_count=1,
+            max_replica_count=1,
+            traffic_percentage=100,
+            service_account=service_account,
+        )
+        return endpoint.resource_name
+
     # deploy / invoke                   -> Lab 3 (Vertex Endpoint)
     # --- Lab 3 -----------------------------------------------------------------
 
@@ -337,9 +409,50 @@ class GcpAdapter(CloudAdapter):
         client = monitoring_v3.MetricServiceClient()
         client.create_time_series(name=f"projects/{self.cfg.project_id}", time_series=[series])
 
-    # emit_metric -> Lab 4 (implemented above)
-    # generate                          -> Lab 5 (managed LLM endpoint; read usageMetadata for tokens)
-    # teardown                          -> Lab 5 (filter resources by label)
+    def generate(self, prompt: str, params: dict[str, Any]) -> dict[str, Any]:
+        """One call to a managed Gemini model on Vertex AI (Lab 5 Part B).
+
+        Token counts are read from the response's usage_metadata, never estimated.
+        Knobs (all optional): model, system, temperature, max_output_tokens,
+        json_output, thinking_budget. Environment: LLM_MODEL, LLM_LOCATION.
+        """
+        from google import genai
+        from google.genai import types
+
+        model = params.get("model") or os.environ.get("LLM_MODEL", "gemini-2.5-flash")
+        location = os.environ.get("LLM_LOCATION", "us-central1")
+        client = genai.Client(vertexai=True, project=self.cfg.project_id, location=location)
+
+        kwargs: dict[str, Any] = {
+            "temperature": params.get("temperature", 0.0),
+            "max_output_tokens": params.get("max_output_tokens", 200),
+        }
+        if params.get("system"):
+            kwargs["system_instruction"] = params["system"]
+        if params.get("json_output"):
+            kwargs["response_mime_type"] = "application/json"
+        if params.get("thinking_budget") is not None:
+            # Thinking tokens count against max_output_tokens and are billed as output.
+            # Budget 0 keeps a short capped answer from being eaten by hidden reasoning.
+            kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=params["thinking_budget"])
+
+        started = time.perf_counter()
+        resp = client.models.generate_content(
+            model=model, contents=prompt, config=types.GenerateContentConfig(**kwargs))
+        latency_ms = round((time.perf_counter() - started) * 1000)
+
+        usage = resp.usage_metadata
+        return {
+            "response": resp.text or "",
+            "input_tokens": int(usage.prompt_token_count or 0),
+            # candidates + thinking tokens: both are billed as output.
+            "output_tokens": int((usage.candidates_token_count or 0)
+                                 + (getattr(usage, "thoughts_token_count", 0) or 0)),
+            "cached_input_tokens": int(getattr(usage, "cached_content_token_count", 0) or 0),
+            "latency_ms": latency_ms,
+        }
+
     def teardown(self, tags: dict[str, str]) -> list[str]:
         """Delete resources tagged with the given labels. Returns list of deleted resource names."""
         aiplatform.init(
@@ -348,6 +461,31 @@ class GcpAdapter(CloudAdapter):
         )
 
         deleted = []
+
+        # Delete pipeline schedules first, so nothing can start a new run while we clean up.
+        # A schedule is matched by its labels, or by the display name this lab gives it.
+        for sched in aiplatform.PipelineJobSchedule.list():
+            try:
+                if (sched.display_name or "").endswith("-weekly"):
+                    sched.delete()
+                    deleted.append(sched.resource_name)
+                    print(f"Deleted pipeline schedule: {sched.resource_name}")
+            except Exception as exc:  # report and keep going
+                log.warning("Could not delete schedule %s: %s", sched.resource_name, exc)
+
+        # Delete pipeline runs with matching labels (a run still in progress cannot be
+        # deleted; it is cancelled first and has to be re-checked later)
+        for run in aiplatform.PipelineJob.list(
+                filter=" AND ".join(f'labels.{k}="{v}"' for k, v in tags.items())):
+            try:
+                if run.state.name in ("PIPELINE_STATE_RUNNING", "PIPELINE_STATE_PENDING"):
+                    run.cancel()
+                else:
+                    run.delete()
+                deleted.append(run.resource_name)
+                print(f"Deleted or cancelled pipeline run: {run.resource_name}")
+            except Exception as exc:  # report and keep going; teardown must not stop early
+                log.warning("Could not delete %s: %s", run.resource_name, exc)
 
         # Delete Custom Jobs with matching labels
         jobs = aiplatform.CustomJob.list(

@@ -1,0 +1,318 @@
+# PIPELINE DEFINITION
+# Name: itcs355-training-pipeline
+components:
+  comp-condition-1:
+    dag:
+      tasks:
+        deploy-staging:
+          cachingOptions: {}
+          componentRef:
+            name: comp-deploy-staging
+          dependentTasks:
+          - register
+          inputs:
+            parameters:
+              run_id:
+                runtimeValue:
+                  constant: '{{$.pipeline_job_uuid}}'
+          taskInfo:
+            name: deploy-staging
+        register:
+          cachingOptions: {}
+          componentRef:
+            name: comp-register
+          inputs:
+            parameters:
+              run_id:
+                runtimeValue:
+                  constant: '{{$.pipeline_job_uuid}}'
+          taskInfo:
+            name: register
+    inputDefinitions:
+      parameters:
+        pipelinechannel--evaluate-gate_decision:
+          parameterType: STRING
+  comp-deploy-staging:
+    executorLabel: exec-deploy-staging
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+  comp-evaluate:
+    executorLabel: exec-evaluate
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        gate_decision:
+          parameterType: STRING
+  comp-ingest:
+    executorLabel: exec-ingest
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+  comp-register:
+    executorLabel: exec-register
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+  comp-train:
+    executorLabel: exec-train
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+  comp-validate:
+    executorLabel: exec-validate
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-deploy-staging:
+      container:
+        args:
+        - --run-id
+        - '{{$.inputs.parameters[''run_id'']}}'
+        command:
+        - python
+        - scripts/pipeline_step.py
+        - deploy_staging
+        env:
+        - name: CLOUD_PROVIDER
+          value: gcp
+        - name: PROJECT_ID
+          value: itcs355-6688015
+        - name: REGION
+          value: asia-southeast1
+        - name: BLOB_URI
+          value: gs://itcs355-6688015/itcs355
+        - name: CONTAINER_REGISTRY
+          value: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+        - name: MLFLOW_TRACKING_URI
+          value: sqlite:///mlflow.db
+        - name: MODEL_REGISTRY_NAME
+          value: itcs355-6688015
+        - name: IDENTITY_REF
+          value: lab2train@itcs355-6688015.iam.gserviceaccount.com
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
+    exec-evaluate:
+      container:
+        args:
+        - --run-id
+        - '{{$.inputs.parameters[''run_id'']}}'
+        - --decision-out
+        - '{{$.outputs.parameters[''gate_decision''].output_file}}'
+        command:
+        - python
+        - scripts/pipeline_step.py
+        - evaluate
+        env:
+        - name: CLOUD_PROVIDER
+          value: gcp
+        - name: PROJECT_ID
+          value: itcs355-6688015
+        - name: REGION
+          value: asia-southeast1
+        - name: BLOB_URI
+          value: gs://itcs355-6688015/itcs355
+        - name: CONTAINER_REGISTRY
+          value: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+        - name: MLFLOW_TRACKING_URI
+          value: sqlite:///mlflow.db
+        - name: MODEL_REGISTRY_NAME
+          value: itcs355-6688015
+        - name: IDENTITY_REF
+          value: lab2train@itcs355-6688015.iam.gserviceaccount.com
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
+    exec-ingest:
+      container:
+        args:
+        - --run-id
+        - '{{$.inputs.parameters[''run_id'']}}'
+        command:
+        - python
+        - scripts/pipeline_step.py
+        - ingest
+        env:
+        - name: CLOUD_PROVIDER
+          value: gcp
+        - name: PROJECT_ID
+          value: itcs355-6688015
+        - name: REGION
+          value: asia-southeast1
+        - name: BLOB_URI
+          value: gs://itcs355-6688015/itcs355
+        - name: CONTAINER_REGISTRY
+          value: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+        - name: MLFLOW_TRACKING_URI
+          value: sqlite:///mlflow.db
+        - name: MODEL_REGISTRY_NAME
+          value: itcs355-6688015
+        - name: IDENTITY_REF
+          value: lab2train@itcs355-6688015.iam.gserviceaccount.com
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
+    exec-register:
+      container:
+        args:
+        - --run-id
+        - '{{$.inputs.parameters[''run_id'']}}'
+        command:
+        - python
+        - scripts/pipeline_step.py
+        - register
+        env:
+        - name: CLOUD_PROVIDER
+          value: gcp
+        - name: PROJECT_ID
+          value: itcs355-6688015
+        - name: REGION
+          value: asia-southeast1
+        - name: BLOB_URI
+          value: gs://itcs355-6688015/itcs355
+        - name: CONTAINER_REGISTRY
+          value: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+        - name: MLFLOW_TRACKING_URI
+          value: sqlite:///mlflow.db
+        - name: MODEL_REGISTRY_NAME
+          value: itcs355-6688015
+        - name: IDENTITY_REF
+          value: lab2train@itcs355-6688015.iam.gserviceaccount.com
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
+    exec-train:
+      container:
+        args:
+        - --run-id
+        - '{{$.inputs.parameters[''run_id'']}}'
+        command:
+        - python
+        - scripts/pipeline_step.py
+        - train
+        env:
+        - name: CLOUD_PROVIDER
+          value: gcp
+        - name: PROJECT_ID
+          value: itcs355-6688015
+        - name: REGION
+          value: asia-southeast1
+        - name: BLOB_URI
+          value: gs://itcs355-6688015/itcs355
+        - name: CONTAINER_REGISTRY
+          value: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+        - name: MLFLOW_TRACKING_URI
+          value: sqlite:///mlflow.db
+        - name: MODEL_REGISTRY_NAME
+          value: itcs355-6688015
+        - name: IDENTITY_REF
+          value: lab2train@itcs355-6688015.iam.gserviceaccount.com
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
+        resources:
+          cpuLimit: 4.0
+          memoryLimit: 15.0
+          resourceCpuLimit: '4'
+          resourceMemoryLimit: 15G
+    exec-validate:
+      container:
+        args:
+        - --run-id
+        - '{{$.inputs.parameters[''run_id'']}}'
+        command:
+        - python
+        - scripts/pipeline_step.py
+        - validate
+        env:
+        - name: CLOUD_PROVIDER
+          value: gcp
+        - name: PROJECT_ID
+          value: itcs355-6688015
+        - name: REGION
+          value: asia-southeast1
+        - name: BLOB_URI
+          value: gs://itcs355-6688015/itcs355
+        - name: CONTAINER_REGISTRY
+          value: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355
+        - name: MLFLOW_TRACKING_URI
+          value: sqlite:///mlflow.db
+        - name: MODEL_REGISTRY_NAME
+          value: itcs355-6688015
+        - name: IDENTITY_REF
+          value: lab2train@itcs355-6688015.iam.gserviceaccount.com
+        image: asia-southeast1-docker.pkg.dev/itcs355-6688015/itcs355/itcs355-lab1:16edcde
+pipelineInfo:
+  name: itcs355-training-pipeline
+root:
+  dag:
+    tasks:
+      condition-1:
+        componentRef:
+          name: comp-condition-1
+        dependentTasks:
+        - evaluate
+        inputs:
+          parameters:
+            pipelinechannel--evaluate-gate_decision:
+              taskOutputParameter:
+                outputParameterKey: gate_decision
+                producerTask: evaluate
+        taskInfo:
+          name: condition-1
+        triggerPolicy:
+          condition: inputs.parameter_values['pipelinechannel--evaluate-gate_decision']
+            == 'pass'
+      evaluate:
+        cachingOptions: {}
+        componentRef:
+          name: comp-evaluate
+        dependentTasks:
+        - train
+        inputs:
+          parameters:
+            run_id:
+              runtimeValue:
+                constant: '{{$.pipeline_job_uuid}}'
+        taskInfo:
+          name: evaluate
+      ingest:
+        cachingOptions: {}
+        componentRef:
+          name: comp-ingest
+        inputs:
+          parameters:
+            run_id:
+              runtimeValue:
+                constant: '{{$.pipeline_job_uuid}}'
+        taskInfo:
+          name: ingest
+      train:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train
+        dependentTasks:
+        - validate
+        inputs:
+          parameters:
+            run_id:
+              runtimeValue:
+                constant: '{{$.pipeline_job_uuid}}'
+        taskInfo:
+          name: train
+      validate:
+        cachingOptions: {}
+        componentRef:
+          name: comp-validate
+        dependentTasks:
+        - ingest
+        inputs:
+          parameters:
+            run_id:
+              runtimeValue:
+                constant: '{{$.pipeline_job_uuid}}'
+        taskInfo:
+          name: validate
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.14.6

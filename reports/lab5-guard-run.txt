@@ -1,0 +1,25 @@
+golden set  work_order.jsonl  (13 cases)
+  [PASS] wo-001
+  [PASS] wo-002
+  [PASS] wo-003
+  [PASS] wo-004
+  [PASS] wo-005
+  [PASS] wo-006
+  [PASS] wo-007
+  [PASS] wo-008
+  [PASS] wo-009
+  [PASS] wo-010
+  [PASS] wo-011
+  [PASS] wo-012
+  [PASS] wo-013
+
+pass rate           13/13  (100.0%)
+p95 latency         3280 ms
+cost per 1k reqs    2.958 THB  (gcp/small)
+wrote reports/llm_eval-work_order-v4-guard.json
+
+baseline pass rate  0.9231
+current  pass rate  1.0
+newly passing       wo-011
+
+GATE PASSED — no case that passed before fails now

@@ -1,0 +1,9 @@
+# The Lab 3 serving image plus the AWS SDK, so the same service can run on AWS.
+# Layered on the digest-pinned serve image: nothing else about the image changes.
+#   docker buildx build --platform linux/amd64 -f service/Dockerfile.serve-aws \
+#     --build-arg BASE=<registry>/itcs355-serve@sha256:... -t itcs355-serve-aws:TAG --load .
+ARG BASE
+FROM ${BASE}
+USER root
+RUN pip install --no-cache-dir "boto3>=1.34"
+USER runner

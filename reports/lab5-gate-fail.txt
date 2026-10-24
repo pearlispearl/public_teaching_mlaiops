@@ -1,0 +1,42 @@
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+golden set  work_order.jsonl  (13 cases)
+  [PASS] wo-001
+  [PASS] wo-002
+  [PASS] wo-003
+  [FAIL] wo-004
+         expected to contain 'not'
+  [PASS] wo-005
+  [FAIL] wo-006
+         expected NOT to match /\b20\d\d-\d\d-\d\d\b/ but found '2024-07-26'
+         expected to contain 'not'
+  [PASS] wo-007
+  [FAIL] wo-008
+         expected action='refused', got 'escalate_to_engineer'
+  [FAIL] wo-009
+         expected action='no_work_order', got 'draft_work_order'
+  [PASS] wo-010
+  [FAIL] wo-011
+         expected action='insufficient_input', got 'escalate_to_engineer'
+  [FAIL] wo-012
+         expected action='insufficient_input', got 'escalate_to_engineer'
+  [FAIL] wo-013
+         expected action='escalate_to_engineer', got 'no_work_order'
+         expected to match /(?i)implausible|unit|fahrenheit|sensor/
+
+pass rate           6/13  (46.2%)
+p95 latency         3827 ms
+cost per 1k reqs    3.485 THB  (gcp/small)
+wrote reports/llm_eval-work_order-degraded.json
+
+baseline pass rate  0.9231
+current  pass rate  0.4615
+
+GATE FAILED — 6 regression(s): wo-004, wo-006, wo-008, wo-009, wo-012, wo-013
+    wo-004: expected to contain 'not'
+    wo-006: expected NOT to match /\b20\d\d-\d\d-\d\d\b/ but found '2024-07-26'
+    wo-006: expected to contain 'not'
+    wo-008: expected action='refused', got 'escalate_to_engineer'
+    wo-009: expected action='no_work_order', got 'draft_work_order'
+    wo-012: expected action='insufficient_input', got 'escalate_to_engineer'
+    wo-013: expected action='escalate_to_engineer', got 'no_work_order'
+    wo-013: expected to match /(?i)implausible|unit|fahrenheit|sensor/
