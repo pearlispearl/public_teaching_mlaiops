@@ -129,6 +129,12 @@ save less. The saving comes with a check, not instead of one: the shorter prompt
 (wo-004 and wo-013 regressed) and the guard is what brought it back to 13/13. Prices are the verified rates in
 `src/llmcost.py` (gemini-2.5-flash), after correcting an earlier placeholder that was about 40% off.
 
+## 7. 24-hour recheck 
+
+- `scripts/teardown_verify.py --lab 5` returns PASS: nothing found under the lab tags (`reports/lab5-teardown-verify-24h.txt`).
+- Billing for the labelled resources is unchanged at 9.95 THB, with the same SKUs and quantities (`reports/lab5-billing-label-24h.csv`), so nothing tagged kept billing after teardown.
+- Month total, unfiltered: 21.21 THB against 20.73 THB a day earlier, an increase of 0.48 THB (`reports/lab5-billing-oct-24h.csv`). By service: Vertex AI 11.66, Artifact Registry 5.73, Cloud Run 3.78, Cloud Storage 0.04. Cloud Run has no services left (`gcloud run services list` returns 0 items), so its 3.78 THB is past usage. The growth comes from Artifact Registry, which held 4.2 GB of course images in the repository `itcs355`. At USD 0.10 per GB-month above a 0.5 GB free tier (a price I did not re-verify for this region) that is about 0.4 THB per day, which matches the increase. After submitting the Capstone I deleted that repository, since nothing needs it any more and it was the main resource still billing; I will confirm from the next billing export that the Artifact Registry line stops growing. Total spend this term stays far below the 800 THB limit.
+
 ## Budget and what remains
 
 Term spend: about 368 THB (357.49 from the export I used for the estimate, plus 10.54 for Lab 5), under the 800 THB

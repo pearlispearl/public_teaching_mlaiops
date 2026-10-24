@@ -1,0 +1,10 @@
+Service description,Service ID,SKU description,SKU ID,Usage amount,Usage unit,List cost (฿),Negotiated savings (฿),Savings programs (฿),Other savings (฿),Unrounded subtotal (฿),Subtotal (฿),Percent change in subtotal compared to previous period
+Vertex AI,C7E2-9256-1C43,AI Pipeline job: Managed Pipeline job count,2B84-9CF1-241F,3,count,3.02,0.00,0.00,0.00,3.023325,3.02,New
+Vertex AI,C7E2-9256-1C43,Vertex AI: Training/Pipelines on E2 Instance Core running in Singapore,F859-D89A-E00E,2.79,hour,2.90,0.00,0.00,0.00,2.896854,2.90,New
+Vertex AI,C7E2-9256-1C43,Vertex AI: Training/Pipelines on E2 Instance Ram running in Singapore,C09A-8DDD-38DA,11.15,gibibyte hour,1.55,0.00,0.00,0.00,1.552752,1.55,New
+Vertex AI,C7E2-9256-1C43,Vertex AI: Online/Batch Prediction N1 Predefined Instance Core running in Singapore for AI Platform,F185-51E6-37CC,0.79,hour,1.20,0.00,0.00,0.00,1.197569,1.20,New
+Vertex AI,C7E2-9256-1C43,Vertex AI: Training/Pipelines on SSD backed PD Capacity in Singapore,F453-DB75-93EA,0.09,gibibyte month,0.68,0.00,0.00,0.00,0.676441,0.68,New
+Vertex AI,C7E2-9256-1C43,Vertex AI: Online/Batch Prediction N1 Predefined Instance Ram running in Singapore for AI Platform,265F-3871-41BC,2.97,gibibyte hour,0.60,0.00,0.00,0.00,0.598783,0.60,New
+,,,,,,,,,Subtotal,9.945724,9.95
+,,,,,,,,,Tax,0.000000,0.00
+,,,,,,,,,Filtered total,9.945724,9.95
